@@ -17,20 +17,69 @@ asmlinkage extern long (*sysptr)(void *arg);
 asmlinkage long xcrypt(void *arg)
 {	/******VARIABLE DECLARATIONS**********/
 	struct input_data* point = kmalloc(sizeof(struct input_data),__GFP_WAIT);
-	if(point==NULL)
-		return -EFAULT;
-	if(copy_from_user(point,(struct input_data*)arg,sizeof(struct input_data)))
-		return -EFAULT;
-	point->input_file = kmalloc(strlen_user(((struct input_data*)arg)->input_file)+1,__GFP_WAIT);
-	if(copy_from_user(point->input_file,((struct input_data*)arg)->input_file,strlen_user(((struct input_data*)arg)->input_file)+1))
-		return -EFAULT;
-	point->output_file = kmalloc(strlen_user(((struct input_data*)arg)->output_file)+1,__GFP_WAIT);
-	if(copy_from_user(point->output_file,((struct input_data*)arg)->output_file,strlen_user(((struct input_data*)arg)->output_file)+1))
-                return -EFAULT;
-	point->keybuf = kmalloc(strlen_user(((struct input_data*)arg)->keybuf)+1,__GFP_WAIT);
-	if(copy_from_user(point->keybuf,((struct input_data*)arg)->keybuf,strlen_user(((struct input_data*)arg)->keybuf)+1))
-		return -EFAULT;
+	int error = 0;
+	if(arg==NULL){
+		error = -EINVAL;
+		goto LERROR;
+	}
+	if(point==NULL){
+		error = -ENOMEM;
+		goto LERROR;
+	}
+	if(!access_ok(VERIFY_READ,arg,sizeof(struct input_data))){
+		error = -EACCES;
+		goto LERROR;
+	}
+	if(copy_from_user(point,(struct input_data*)arg,sizeof(struct input_data))){
+		error =  -EFAULT;
+		goto LERROR;
+	}
 
+	/**********CODE TO COPY INPUT FILE PATH/NAME****************/
+	point->input_file = kmalloc(strlen_user(((struct input_data*)arg)->input_file)+1,__GFP_WAIT);
+	if(point->input_file==NULL){
+		error = -ENOMEM;
+		goto FREEINFILE;
+	}
+	if(!access_ok(VERIFY_READ,((struct input_data*)arg)->input_file,strlen_user(((struct input_data*)arg)->input_file)+1)){
+		error = -EACCES;
+		goto FREEINFILE;
+	}
+	if(copy_from_user(point->input_file,((struct input_data*)arg)->input_file,strlen_user(((struct input_data*)arg)->input_file)+1)){
+		error = -EFAULT;
+		goto FREEINFILE;
+	}
+	/***********CODE TO COPY OUTPUT FILE PATH/NAME************/
+	point->output_file = kmalloc(strlen_user(((struct input_data*)arg)->output_file)+1,__GFP_WAIT);
+	if(point->output_file==NULL){
+		error = -ENOMEM;
+		goto FREEOUTFILE;
+	}
+	if(!access_ok(VERIFY_READ,((struct input_data*)arg)->output_file,strlen_user(((struct input_data*)arg)->output_file)+1)){
+                error = -EACCES;
+		goto FREEOUTFILE;
+	}
+	if(copy_from_user(point->output_file,((struct input_data*)arg)->output_file,strlen_user(((struct input_data*)arg)->output_file)+1)){
+		error = -EFAULT;
+		goto FREEOUTFILE;
+	}
+	/********CODE TO COPY KEY PHRASE*******************/
+	point->keybuf = kmalloc(strlen_user(((struct input_data*)arg)->keybuf)+1,__GFP_WAIT);
+	if(point->keybuf==NULL){
+		error =  -ENOMEM;
+		goto FREEKEYBUF;
+	}
+	if(!access_ok(VERIFY_READ,((struct input_data*)arg)->keybuf,strlen_user(((struct input_data*)arg)->keybuf)+1)){
+		error = -EACCES;
+		goto FREEKEYBUF;
+	}
+	if(copy_from_user(point->keybuf,((struct input_data*)arg)->keybuf,strlen_user(((struct input_data*)arg)->keybuf)+1)){
+		error = -EFAULT;
+		goto FREEKEYBUF;
+	}
+	/*****************END OF COPYING********************/
+	/****************FILE VALIDATIONS CODE START HERE***********************/
+	
 
 	//point->input_file = arg->input_file;
 	//char* input_file = (char*)ptr[1];
@@ -55,11 +104,12 @@ asmlinkage long xcrypt(void *arg)
 	//printk("Argumnets Received %s",ptr);
 
 	/**********ARGUMNETS VALIDATION END*************************/
-
-	if (arg == NULL)
-		return -EINVAL;
-	else
-		return 0;
+	/***********LABELS TO FREE AND CLEAN MEMORY**********/
+	FREEKEYBUF: kfree(point->keybuf);
+	FREEOUTFILE: kfree(point->output_file);
+	FREEINFILE: kfree(point->input_file);
+	LERROR: kfree(point);
+		return error;
 }
 
 static int __init init_sys_xcrypt(void)

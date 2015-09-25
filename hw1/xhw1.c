@@ -38,7 +38,7 @@ int main(int argc,char* argv[])
 				argument.key = malloc(length);
 				memcpy(argument.key,optarg,length);
 				if(argument.key[0] == '-' && (argument.key[1]=='e' || argument.key[1]=='d')){
-					fprintf(stderr,"Argument is reqguired for password");
+					fprintf(stderr,"Argument is reqguired for password\n");
 					return 1;
 				}
 				//printf("Printing %s",argument.key);
@@ -50,7 +50,7 @@ int main(int argc,char* argv[])
 				flag_decrypt = 1;
 				break;
 			case 'h':
-				printf("Usage Message: \n\t This command takes 4 arguments -p is the Passphrase -e to encrypt or -d to decrypt infile and outfile \n Usage Example ./xcipher -p \"This is PassPhrase\" -e inputfile outputfile");
+				printf("Usage Message: \n\t This command takes 4 arguments -p is the Passphrase -e to encrypt or -d to decrypt infile and outfile \n Usage Example ./xcipher -p \"This is PassPhrase\" -e inputfile outputfile\n");
 				return 0;
 			case '?':
 				if(optopt == 'p'){
@@ -58,7 +58,7 @@ int main(int argc,char* argv[])
 					return 1;
 				}
 				else{
-					fprintf(stderr,"Unknown Argument, to know usagae type ./xcipher -h");
+					fprintf(stderr,"Unknown Argument, to know usage type ./xcipher -h\n");
 					return 1;
 				}
 				break;
@@ -80,6 +80,10 @@ int main(int argc,char* argv[])
 		fprintf(stderr,"You cannot pass both encrypt and decrypt flag");
 		return 1;
 	}
+	if(!flag_encrypt && !flag_decrypt){
+		fprintf(stderr,"Missing Flags: Forgot to pass whether to encrypt (-e) or decrypt (-d)\n");
+		return 1;
+	}
 	if(flag_encrypt)
 		argument.flags = 1;
 	if(flag_decrypt)
@@ -90,10 +94,11 @@ int main(int argc,char* argv[])
 //	void *dummy = (void *) argv[1];
 
   	rc = syscall(__NR_xcrypt, dummy);
-	if (rc == 0)
-		printf("syscall returned %d\n", rc);
+	if (rc == 0){
+		//printf("syscall returned %d\n", rc);
+	}
 	else
-		printf("syscall returned %d (errno=%d)\n", rc, errno);
+		perror("ERROR:");
 
 	exit(rc);
 }
