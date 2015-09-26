@@ -2,16 +2,17 @@
 #include <linux/moduleloader.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
+#include "input_data.h"
 asmlinkage extern long (*sysptr)(void *arg);
 
 ///////////TYPEDEF for saving user provided inputs////////////
- struct input_data{
+/* struct input_data{
 	char* input_file;
 	char* output_file;
 	char* keybuf;
 	int keylen;
 	int flags;
-}((__attribute_packed__));
+}((__attribute_packed__));*/
 /////////////TYPEDEF ends here/////////////////////
 
 asmlinkage long xcrypt(void *arg)
@@ -36,6 +37,13 @@ asmlinkage long xcrypt(void *arg)
 	}
 
 	/**********CODE TO COPY INPUT FILE PATH/NAME****************/
+	////////SEARCH WHICH ERROR CODE TO RETURN FOR NULL INPUT FILE ARGUMENT///////////////////
+	if(((struct input_data*)arg)->input_file == NULL){
+		printk("input file argument passed not passed\n");
+		error = -EINVAL;
+		goto LERROR;
+	}
+	/////////////////////////////////////////////////////////////////////////////////////////
 	point->input_file = kmalloc(strlen_user(((struct input_data*)arg)->input_file)+1,__GFP_WAIT);
 	if(point->input_file==NULL){
 		error = -ENOMEM;
@@ -49,7 +57,16 @@ asmlinkage long xcrypt(void *arg)
 		error = -EFAULT;
 		goto FREEINFILE;
 	}
+
+
 	/***********CODE TO COPY OUTPUT FILE PATH/NAME************/
+	///////////SEARCH WHICH ERROR CODE TO RETURN FOR NULL OUTPUT FILE ARGUMENT///////////
+	if(((struct input_data*)arg)->output_file==NULL){
+		printk("Missing output file argument\n");
+		error = -EINVAL;
+		goto FREEINFILE;
+	}
+	////////////////////////////////////////////////////////////////////////////////////
 	point->output_file = kmalloc(strlen_user(((struct input_data*)arg)->output_file)+1,__GFP_WAIT);
 	if(point->output_file==NULL){
 		error = -ENOMEM;
@@ -64,6 +81,12 @@ asmlinkage long xcrypt(void *arg)
 		goto FREEOUTFILE;
 	}
 	/********CODE TO COPY KEY PHRASE*******************/
+	 if(((struct input_data*)arg)->keybuf==NULL){
+                printk("Missing passphrase \n");
+                error = -EINVAL;
+                goto FREEOUTFILE;
+        }
+
 	point->keybuf = kmalloc(strlen_user(((struct input_data*)arg)->keybuf)+1,__GFP_WAIT);
 	if(point->keybuf==NULL){
 		error =  -ENOMEM;

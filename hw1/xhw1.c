@@ -5,18 +5,10 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <string.h>
+#include "input_data.h"
 #ifndef __NR_xcrypt
 #error xcrypt system call not defined
 #endif
-/**********Defination of structure that will hold user input data***************/
-struct input_data{
-	char* input_file;
-	char* output_file;
-	char* key;
-	int keylength;
-	int flags;
-}((__attribute_packed__));
-/**********Structutr defination ends here************************/
 	
 int main(int argc,char* argv[])
 {
@@ -29,17 +21,17 @@ int main(int argc,char* argv[])
 	int option = 0;
 	int flag_encrypt = 0;
 	int flag_decrypt = 0;
-	//int optind = -1;
-	//printf("Entering while loop");
+	memset(&argument,0,sizeof(struct input_data));
+	printf("No of arguments %d\n\n",argc);
 	while((option = getopt(argc,argv,"p:edh"))!=-1){
 		switch(option){
 			case 'p':
 				length = strlen(optarg)+1;
-				argument.key = malloc(length);
-				memcpy(argument.key,optarg,length);
-				if(argument.key[0] == '-' && (argument.key[1]=='e' || argument.key[1]=='d')){
+				argument.keybuf = malloc(length);
+				memcpy(argument.keybuf,optarg,length);
+				if(argument.keybuf[0] == '-' && (argument.keybuf[1]=='e' || argument.keybuf[1]=='d')){
 					fprintf(stderr,"Argument is reqguired for password\n");
-					return 1;
+					goto FREEBUF;
 				}
 				//printf("Printing %s",argument.key);
 				break;
@@ -55,43 +47,71 @@ int main(int argc,char* argv[])
 			case '?':
 				if(optopt == 'p'){
 					fprintf(stderr,"Option -%c is missing argument.\n",optopt);
-					return 1;
+					goto FREEBUF;
 				}
 				else{
 					fprintf(stderr,"Unknown Argument, to know usage type ./xcipher -h\n");
-					return 1;
+					goto FREEBUF;
 				}
 				break;
 			default: break;
 		}
 				
 	}
-	 
 	
+	 if(flag_encrypt && flag_decrypt){
+                fprintf(stderr,"You cannot pass both encrypt and decrypt flag");
+                goto FREEBUF;
+        }
+        if(!flag_encrypt && !flag_decrypt){
+                fprintf(stderr,"Missing Flag: Forgot to pass whether to encrypt (-e) or decrypt (-d)\n");
+                goto FREEBUF;
+        }
+
+
+	printf("Current optind index %d\n\n\n",optind);
+	
+	if(optind >= argc){
+		fprintf(stderr,"Missing input file argument\n");
+		goto FREEBUF;
+	}
 	length = strlen(argv[optind])+1;
 	argument.input_file = malloc(length);
 	memcpy(argument.input_file,argv[optind++],length);
-
+	
+	if(optind >= argc){
+		fprintf(stderr,"Missing output file argument\n");
+		goto FREEIN;
+	}
 	length = strlen(argv[optind])+1;
 	argument.output_file = malloc(length);
 	memcpy(argument.output_file,argv[optind++],length);
-	argument.keylength = strlen(argument.key);
-	if(flag_encrypt && flag_decrypt){
-		fprintf(stderr,"You cannot pass both encrypt and decrypt flag");
-		return 1;
-	}
-	if(!flag_encrypt && !flag_decrypt){
-		fprintf(stderr,"Missing Flags: Forgot to pass whether to encrypt (-e) or decrypt (-d)\n");
-		return 1;
-	}
+	argument.keylen = strlen(argument.keybuf);
+	
 	if(flag_encrypt)
 		argument.flags = 1;
 	if(flag_decrypt)
 		argument.flags = 0;
-	printf("Printing struct values \n input file %s \noutput file %s \npassphrase %s \n flags %d \n keylegth %d\n",argument.input_file, argument.output_file, argument.key,argument.flags,argument.keylength);
+	//DEBUG MESSAGE COMMENT BEFORE SUBMITTING
+	printf("Printing struct values \n input file %s \noutput file %s \npassphrase %s \n flags %d \n keylegth %d\n",argument.input_file, argument.output_file, argument.keybuf,argument.flags,argument.keylen);
 	/****CODE OF STRUCTURE FILLING END HERE********/
-
-//	void *dummy = (void *) argv[1];
+	/******CODE TO CHECK WHETHER USER HAS READ PERMISSION ON FILE OR NOT*********/
+//	FILE* file_id=NULL;
+	if(access(argument.input_file,F_OK)){
+		fprintf(stderr,"File doesn't exist. Please give a valid file name\n");
+		goto FREEOUT;
+		}
+	if(access(argument.input_file,R_OK)){
+		fprintf(stderr,"You don't have permission to read file. Exiting\n");
+		goto FREEOUT;
+	}
+	if(!access(argument.output_file,F_OK)){
+		if(access(argument.output_file,W_OK)){
+			fprintf(stderr,"Output file exists to which you dont have write rights\n");
+			goto FREEOUT;
+		}
+	}
+	
 
   	rc = syscall(__NR_xcrypt, dummy);
 	if (rc == 0){
@@ -99,6 +119,10 @@ int main(int argc,char* argv[])
 	}
 	else
 		perror("ERROR:");
+	
+	FREEOUT: free(argument.output_file);
+	FREEIN:	 free(argument.input_file);
+	FREEBUF: free(argument.keybuf);
 
 	exit(rc);
 }
