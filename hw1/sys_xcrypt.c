@@ -3,6 +3,7 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include "input_data.h"
+//#include <sys/stat.h>
 asmlinkage extern long (*sysptr)(void *arg);
 
 ///////////TYPEDEF for saving user provided inputs////////////
@@ -18,6 +19,7 @@ asmlinkage extern long (*sysptr)(void *arg);
 asmlinkage long xcrypt(void *arg)
 {	/******VARIABLE DECLARATIONS**********/
 	struct input_data* point = kmalloc(sizeof(struct input_data),__GFP_WAIT);
+	//struct stat statbuf;
 	int error = 0;
 	if(arg==NULL){
 		error = -EINVAL;

@@ -5,6 +5,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <string.h>
+#include <openssl/sha.h>
+#include <sys/stat.h>
 #include "input_data.h"
 #ifndef __NR_xcrypt
 #error xcrypt system call not defined
@@ -14,7 +16,8 @@ int main(int argc,char* argv[])
 {
 	int rc;
 	/****CODE TO CREATE A STRUCTURE OBJECT AND FILL IT*********/
-	
+	struct stat stat_data;
+	struct stat output_file_stat;	
 	struct input_data argument;
 	void *dummy = (void *)&argument;
 	size_t length = 0;
@@ -23,16 +26,22 @@ int main(int argc,char* argv[])
 	int flag_decrypt = 0;
 	memset(&argument,0,sizeof(struct input_data));
 	printf("No of arguments %d\n\n",argc);
+	unsigned char* hash = malloc(SHA_DIGEST_LENGTH);
+	argument.keybuf = malloc(SHA_DIGEST_LENGTH+1);
 	while((option = getopt(argc,argv,"p:edh"))!=-1){
 		switch(option){
 			case 'p':
-				length = strlen(optarg)+1;
-				argument.keybuf = malloc(length);
-				memcpy(argument.keybuf,optarg,length);
-				if(argument.keybuf[0] == '-' && (argument.keybuf[1]=='e' || argument.keybuf[1]=='d')){
-					fprintf(stderr,"Argument is reqguired for password\n");
+				if(optarg[0] == '-' && (optarg[1]=='e' || optarg[1]=='d')){
+					errno = -EINVAL;
+					fprintf(stderr,"Argument is required for password\n");
 					goto FREEBUF;
 				}
+				SHA1((unsigned char*)optarg,strlen(optarg),hash);
+				printf("SHA1 %s\n",hash);
+				length = SHA_DIGEST_LENGTH;
+				//argument.keybuf = malloc(length);
+				memcpy(argument.keybuf,hash,length);
+				//*argument.keybuf + length = NULL;  //CHECK THIS 
 				//printf("Printing %s",argument.key);
 				break;
 			case 'e':
@@ -97,17 +106,26 @@ int main(int argc,char* argv[])
 	/****CODE OF STRUCTURE FILLING END HERE********/
 	/******CODE TO CHECK WHETHER USER HAS READ PERMISSION ON FILE OR NOT*********/
 //	FILE* file_id=NULL;
-	if(access(argument.input_file,F_OK)){
+	if(stat(argument.input_file,&stat_data)==-1){
 		fprintf(stderr,"File doesn't exist. Please give a valid file name\n");
-		goto FREEOUT;
-		}
-	if(access(argument.input_file,R_OK)){
-		fprintf(stderr,"You don't have permission to read file. Exiting\n");
+		perror("ERROR:");
 		goto FREEOUT;
 	}
-	if(!access(argument.output_file,F_OK)){
-		if(access(argument.output_file,W_OK)){
-			fprintf(stderr,"Output file exists to which you dont have write rights\n");
+	if(!S_ISREG(stat_data.st_mode)){
+		fprintf(stderr,"Given input file is not an regular file. Exiting\n");
+		goto FREEOUT;
+	}
+	if(!(stat_data.st_mode & S_IRUSR)){
+		fprintf(stderr,"You dont have permissison to read file\n");
+		goto FREEOUT;
+	}
+	if(stat(argument.output_file,&output_file_stat)!=-1){
+		if(!S_ISREG(output_file_stat.st_mode)){
+			fprintf(stderr,"Output file is not a regular file\n");
+			goto FREEOUT;
+		}
+		if(!(output_file_stat.st_mode & S_IWUSR)){
+			fprintf(stderr,"You don't have permission to write to output file\n");
 			goto FREEOUT;
 		}
 	}
@@ -119,10 +137,11 @@ int main(int argc,char* argv[])
 	}
 	else
 		perror("ERROR:");
-	
+	//rc =errno;
+	errno = rc;   //CHECK THIS setting errno to rc beacuse we wiill be returing errno not rc now so that if we encounter an error and system is not executed that also we are returning something meaningful
 	FREEOUT: free(argument.output_file);
 	FREEIN:	 free(argument.input_file);
 	FREEBUF: free(argument.keybuf);
-
-	exit(rc);
+	//exit(rc); 
+	exit(errno);    
 }
