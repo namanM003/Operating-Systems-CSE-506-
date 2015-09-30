@@ -31,11 +31,17 @@ int main(int argc,char* argv[])
 	while((option = getopt(argc,argv,"p:edh"))!=-1){
 		switch(option){
 			case 'p':
-				if(optarg[0] == '-' && (optarg[1]=='e' || optarg[1]=='d')){
-					errno = -EINVAL;
+				/*if(optarg[0] == '-' && (optarg[1]=='e' || optarg[1]=='d')){
+					errno = EINVAL;
 					fprintf(stderr,"Argument is required for password\n");
 					goto FREEBUF;
+				}*/
+				if(strlen(optarg) < 6){
+					errno = EINVAL;
+			                fprintf(stderr,"Keylength should be atleast 6 characters long. Exiting\n");
+                			goto FREEBUF;
 				}
+
 				SHA1((unsigned char*)optarg,strlen(optarg),hash);
 				printf("SHA1 %s\n",hash);
 				length = SHA_DIGEST_LENGTH;
@@ -96,7 +102,10 @@ int main(int argc,char* argv[])
 	argument.output_file = malloc(length);
 	memcpy(argument.output_file,argv[optind++],length);
 	argument.keylen = strlen(argument.keybuf);
-	
+	/*if(argument.keylen < 6){
+		fprintf(stderr,"Keylength should be atleast 6 characters long. Exiting\n");
+		goto FREEOUT;	
+	}*/
 	if(flag_encrypt)
 		argument.flags = 1;
 	if(flag_decrypt)
@@ -108,14 +117,14 @@ int main(int argc,char* argv[])
 //	FILE* file_id=NULL;
 	if(stat(argument.input_file,&stat_data)==-1){
 		fprintf(stderr,"File doesn't exist. Please give a valid file name\n");
-		perror("ERROR:");
+		//perror("ERROR:");
 		goto FREEOUT;
 	}
 	if(!S_ISREG(stat_data.st_mode)){
 		fprintf(stderr,"Given input file is not an regular file. Exiting\n");
 		goto FREEOUT;
 	}
-	if(!(stat_data.st_mode & S_IRUSR)){
+	if(access(argument.input_file,R_OK)){
 		fprintf(stderr,"You dont have permissison to read file\n");
 		goto FREEOUT;
 	}
@@ -124,10 +133,15 @@ int main(int argc,char* argv[])
 			fprintf(stderr,"Output file is not a regular file\n");
 			goto FREEOUT;
 		}
-		if(!(output_file_stat.st_mode & S_IWUSR)){
+		if(access(argument.output_file,W_OK)){
 			fprintf(stderr,"You don't have permission to write to output file\n");
 			goto FREEOUT;
 		}
+		if(stat_data.st_ino == output_file_stat.st_ino){
+			printf("Input and output file may be same. Syscall will check for filesystem \n");
+		//	goto FREEOUT;
+		}
+			
 	}
 	
 
