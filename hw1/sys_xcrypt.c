@@ -6,20 +6,10 @@
 #include <linux/errno.h>
 #include <linux/err.h> //CHECK WHETEHR REQUIRED OR NOT
 #include <linux/string.h>
-#include <linux/cypto.h>
+#include <linux/crypto.h>
+#include <linux/scatterlist.h>
 #include "input_data.h"
-//#include <sys/stat.h>
 asmlinkage extern long (*sysptr)(void *arg);
-
-///////////TYPEDEF for saving user provided inputs////////////
-/* struct input_data{
-	char* input_file;
-	char* output_file;
-	char* keybuf;
-	int keylen;
-	int flags;
-}((__attribute_packed__));*/
-/////////////TYPEDEF ends here/////////////////////
 
 asmlinkage long xcrypt(void *arg)
 {	/******VARIABLE DECLARATIONS**********/
@@ -27,18 +17,22 @@ asmlinkage long xcrypt(void *arg)
 	struct file *input_f = (struct file*)NULL;
 	struct file *output_f = (struct file *)NULL;
 	struct file *tmp_file = (struct file *)NULL;
-	char *crypt_algo = "aes";
+	//char *crypt_algo = "aes";
 	char* temp_file;
-	long buffersize = PAGE_SIZE;
+	//long buffersize = PAGE_SIZE;
 	char* buf;
 	char* buf_crypto;
-	int mode = CRYPTO_TFM_MODE_CBC;
-	char key[16];
-	struct crypto_tfm *tfm;
-	char *decrypted;
+//	int mode = CRYPTO_TFM_MODE_CBC;
+	char *cipher = "ctr(aes)";
+	char* key;
+	struct crypto_blkcipher *blkcipher = NULL;
+	struct blkcipher_desc desc;
+	//char *decrypted;
 	mm_segment_t fs;
 	int bytes_read = 0;
-	int padding = 0;
+//	int padding = 0;
+//	int for_runner = 0;
+	struct scatterlist sg_in,sg_out;
 	//struct stat statbuf;
 	int error = 0;
 	if(arg==NULL){
@@ -109,7 +103,7 @@ asmlinkage long xcrypt(void *arg)
                 goto FREEOUTFILE;
         }
 
-	point->keybuf = kmalloc(strlen_user(((struct input_data*)arg)->keybuf)+1,__GFP_WAIT);
+	point->keybuf = kmalloc(16,__GFP_WAIT);
 	if(point->keybuf==NULL){
 		error =  -ENOMEM;
 		goto FREEKEYBUF;
@@ -118,7 +112,7 @@ asmlinkage long xcrypt(void *arg)
 		error = -EACCES;
 		goto FREEKEYBUF;
 	}
-	if(copy_from_user(point->keybuf,((struct input_data*)arg)->keybuf,strlen_user(((struct input_data*)arg)->keybuf)+1)){
+	if(copy_from_user(point->keybuf,((struct input_data*)arg)->keybuf,16)){
 		error = -EFAULT;
 		goto FREEKEYBUF;
 	}
@@ -144,15 +138,15 @@ asmlinkage long xcrypt(void *arg)
 	output_f = filp_open(point->output_file,O_WRONLY,0);
 	printk("If I dont get printed above line is a problem\n");
 	if(IS_ERR(output_f) || output_f == NULL){
-		//output_f = filp_open(point->output_file,O_WRONLY | O_CREAT,input_f->f_inode->i_mode | S_IWUSR);
+	//	output_f = filp_open(point->output_file,O_WRONLY | O_CREAT,input_f->f_inode->i_mode | S_IWUSR);
 		if(output_f==NULL){
 			printk("File doesnt exist\n");
 		}
-		else{
+		/*else{
 			printk("You dont have permission to read");
 			error = -EACCES;
 			goto CLOSEINPUTFILE;
-		}
+		}*/
 		/*printk("\n\n\nCreating a file from inside a kernel\n\n\n");
 		// output_f = filp_open(point->output_file,O_WRONLY | O_CREAT,0777);   //THIS IS TEST CODE
 		if(IS_ERR(output_f)){
@@ -164,32 +158,24 @@ asmlinkage long xcrypt(void *arg)
 	else{
 		if(!(output_f->f_inode->i_mode & FMODE_WRITE)){
 			error = -EACCES;
-			flip_close(output_f,NULL);
+			filp_close(output_f,NULL);
 			goto CLOSEINPUTFILE;
 		}
-		flip_close(output_f,NULL);
+		if(input_f->f_inode->i_ino == output_f->f_inode->i_ino){
+	                if(input_f->f_inode->i_sb->s_type->name == output_f->f_inode->i_sb->s_type->name){
+        	                error = -EINVAL;
+                	        printk("Input and Output file are same. Exiting\n");
+				filp_close(output_f,NULL);
+                        	goto CLOSEINPUTFILE;
+                	}
+        	}	
+
+		//filp_close(output_f,NULL);
 		//CHECK DO WE NEED TO DO THIS ANYWAY WE WILL BE RENAMING TMP FILE TO OUTPUTFILE NAME.
 		//filp_close(output_f,NULL);
 		//output_f = filp_open(point->output_file,O_WRONLY,0);
 	}
 		
-	/*if(IS_ERR(output_f)){
-		if(errno==ENOENT){
-			output_f = filp_open(point->output_file,O_WRONLY | O_CREAT,input_f->f_inode->i_mode);
-		}
-		if(errno==EACCES){
-			printk("User dont have permission to write to file");
-			goto CLOSEINPUTFILE;
-		}
-	}*/
-	
-	if(input_f->f_inode->i_ino == output_f->f_inode->i_ino){
-		if(input_f->f_inode->i_sb->s_type->name == output_f->f_inode->i_sb->s_type->name){
-			error = -EINVAL;
-			printk("Input and Output file are same. Exiting\n");
-			goto CLOSEOUTPUTFILE;
-		}
-	}
 	/******CODE TO CREATE TEMP FILE AND WRITE ENCRYPTED DATA TO IT*************************/
 	temp_file = kmalloc(strlen(point->output_file)+5,__GFP_WAIT);
 	memset(temp_file,0,strlen(point->output_file)+5);
@@ -198,39 +184,67 @@ asmlinkage long xcrypt(void *arg)
 	tmp_file = filp_open(temp_file,O_WRONLY | O_CREAT,input_f->f_inode->i_mode | S_IWUSR);
 	if(IS_ERR(tmp_file)){
 		error = -EFAULT;
-		goto CLOSEOUTPUTFILE;
+		goto CLOSEINPUTFILE;
 	}
 	buf = kmalloc(PAGE_SIZE,__GFP_WAIT);
 	
 	if(buf==NULL){
 		error = -ENOMEM;
-		goto CLOSEOUTPUTFILE;
+		goto CLOSEINPUTFILE;
 	}
-	buf_crypto = kmalloc(PAGE_SIZE,__GFP_WAIT);
+	/*buf_crypto = kmalloc(PAGE_SIZE,__GFP_WAIT);
 	if(buf_crypto==NULL){
 		error = -ENOMEM;
 		goto FREEBUF;
 	}
-	fs = get_fs();
+	fs = get_fs();*/
 	//set_fs(get_ds());
 	//input_f->f_op->read(input_f,buf,buffersize,&input_f->f_pos);
 	////// CRYPTO//////
+	blkcipher = crypto_alloc_blkcipher(cipher,0,CRYPTO_ALG_ASYNC);
+	if(IS_ERR(blkcipher)){
+		printk("Could not allocate blkcipher handle for %s\n",cipher);
+		goto FREEBUF;
+	}
+	key = kmalloc(16,__GFP_WAIT);
+	if(key==NULL){
+		error = -ENOMEM;
+		goto FREEKEY;
+	}
 	
-	memset(key, 0, sizeof(key));
-	tfm = crypto_alloc_cipher(algo,4,CRYPTO_ALG_ASYNC);
-	crypto_cipher_setkey(tfm,point->keybuf,16);
+	memset(key, 0, 16);
+	memcpy(key,point->keybuf,16);
+	printk("KeyBuffer %s\n",point->keybuf);
+	if(crypto_blkcipher_setkey(blkcipher,key,16)){
+		printk("Key could not be set");
+		//errno = -EAGAIN;
+		goto FREEKEY;
+	}
+	printk("Key value %s\n",key);
+	desc.flags = 0;
+	desc.tfm = blkcipher;
+	buf_crypto = kmalloc(PAGE_SIZE,__GFP_WAIT);
+        if(buf_crypto==NULL){
+                error = -ENOMEM;
+                goto FREEBUF;
+        }
+        fs = get_fs();
+
+
 	do{
 		printk("In Loop\n");
 		set_fs(get_ds());
-		memset(buf,0,buffersize)
-		bytes_read = vfs_read(input_f,buf,buffersize,&input_f->f_pos);
+		memset(buf,0,PAGE_SIZE);
+		memset(buf_crypto,0,PAGE_SIZE);
+		bytes_read = vfs_read(input_f,buf,PAGE_SIZE,&input_f->f_pos);
+		printk("Bytes Read %d\n",bytes_read);
 		if(bytes_read<0){
 			error = -EFAULT;
 			set_fs(fs);
 			goto FREEOUTPUTBUF;
 		}
 		set_fs(fs);
-	
+		printk("\nData in Buffer%s\n",buf);
 		////////////////////////// CRYPTO CODE //////////////////////////////////////////////////////////////
 		 
 		
@@ -238,17 +252,20 @@ asmlinkage long xcrypt(void *arg)
 			break;
 		set_fs(get_ds());	
 		if(bytes_read==PAGE_SIZE){
-			crypto_cipher_encrypt_one(tfm,buf_crypto,buf);
-			vfs_write(tmp_file,buf_crypto,buffersize,&tmp_file->f_pos);    ///\CHANGE SRC BUFFER TO WHERE YOU WILL WRITE ENCRYPTED DATA
+				sg_init_one(&sg_in,buf,PAGE_SIZE);
+				sg_init_one(&sg_out,buf_crypto,PAGE_SIZE);
+				vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos);    ///\CHANGE SRC BUFFER TO WHERE YOU WILL WRITE ENCRYPTED DATA
 		}
 		else{
-			padding = bytes_read%16;
-			crypto_cipher_encrypt_one(tfm,buf_crypto,bytes_read+padding);
-			vfs_write(tmp_file,buf,bytes_read+1,&tmp_file->f_pos);
-			printk("Printing buf %s\n",buf);
+				sg_init_one(&sg_in,buf,bytes_read);
+				sg_init_one(&sg_out,buf_crypto,bytes_read);
+				crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in, bytes_read);
+//                                sg_init_one(&sg_out,buf_crypto,bytes_read);
+				vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos);
+				//printk("Cypto buf data %s\n",buf_crypto);
 		}
 		set_fs(fs);
-	}while(bytes_read>0);
+	}while(bytes_read==PAGE_SIZE);
 		
 	filp_close(tmp_file,NULL);
 
@@ -260,29 +277,15 @@ asmlinkage long xcrypt(void *arg)
 
 
 
-	//flip_close(point->output_file);
-	//unlink(point->output);
-	//link(tmp_file,point->output_file);
-	//unlink(tmp_file);
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
-	printk("New tmp file name is %s\n",temp_file);
-	/* dummy syscall: returns 0 for non null, -EINVAL for NULL */
-	printk("xcrypt received arg %p\n", arg);
-	//printk("Size of pointer buffer %d\n",sizeof(ptr));
-	/***********ARGUMENTS VALIDATION CODE****************************/
-	printk("\nTrying to print in kernel\n");
-	//char* ptr = (char*)arg;
-	printk("Infile %s\n",point->input_file);
-	printk("Out_file %s\n",point->output_file);
-	printk("Key %s\n",point->keybuf);
-	printk("Keylength %d\n",point->keylen);
-	printk("Flags %d\n",point->flags);
-	//printk("Argumnets Received %s",ptr);
 
 	/**********ARGUMNETS VALIDATION END*************************/
 	/***********LABELS TO FREE AND CLEAN MEMORY**********/
+			crypto_free_blkcipher(blkcipher);
+			
 	FREEOUTPUTBUF: kfree(buf_crypto);
+	FREEKEY: kfree(key);
 	FREEBUF: kfree(buf);
 	//CLOSEOUTPUTFILE: filp_close(output_f,NULL);
 	CLOSEINPUTFILE: filp_close(input_f,NULL);
