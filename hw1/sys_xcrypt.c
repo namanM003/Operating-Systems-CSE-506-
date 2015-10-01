@@ -230,42 +230,85 @@ asmlinkage long xcrypt(void *arg)
         }
         fs = get_fs();
 
-
-	do{
-		printk("In Loop\n");
-		set_fs(get_ds());
-		memset(buf,0,PAGE_SIZE);
-		memset(buf_crypto,0,PAGE_SIZE);
-		bytes_read = vfs_read(input_f,buf,PAGE_SIZE,&input_f->f_pos);
-		printk("Bytes Read %d\n",bytes_read);
-		if(bytes_read<0){
-			error = -EFAULT;
+	if(point->flags==1){
+		do{
+			printk("In Loop\n");
+			set_fs(get_ds());
+			memset(buf,0,PAGE_SIZE);
+			memset(buf_crypto,0,PAGE_SIZE);
+			bytes_read = vfs_read(input_f,buf,PAGE_SIZE,&input_f->f_pos);
+			printk("Bytes Read %d\n",bytes_read);
+			if(bytes_read<0){
+				error = -EFAULT;
+				set_fs(fs);
+				goto FREEOUTPUTBUF;
+			}
 			set_fs(fs);
-			goto FREEOUTPUTBUF;
-		}
-		set_fs(fs);
-		printk("\nData in Buffer%s\n",buf);
-		////////////////////////// CRYPTO CODE //////////////////////////////////////////////////////////////
-		 
+			printk("\nData in Buffer%s\n",buf);
+			////////////////////////// CRYPTO CODE //////////////////////////////////////////////////////////////
+			 
 		
-		if(bytes_read==0)
-			break;
-		set_fs(get_ds());	
-		if(bytes_read==PAGE_SIZE){
+			if(bytes_read==0)
+				break;
+			set_fs(get_ds());	
+			if(bytes_read==PAGE_SIZE){
 				sg_init_one(&sg_in,buf,PAGE_SIZE);
 				sg_init_one(&sg_out,buf_crypto,PAGE_SIZE);
+				crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in, PAGE_SIZE);
 				vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos);    ///\CHANGE SRC BUFFER TO WHERE YOU WILL WRITE ENCRYPTED DATA
-		}
-		else{
+			}
+			else{
 				sg_init_one(&sg_in,buf,bytes_read);
 				sg_init_one(&sg_out,buf_crypto,bytes_read);
 				crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in, bytes_read);
 //                                sg_init_one(&sg_out,buf_crypto,bytes_read);
 				vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos);
-				//printk("Cypto buf data %s\n",buf_crypto);
-		}
-		set_fs(fs);
-	}while(bytes_read==PAGE_SIZE);
+					//printk("Cypto buf data %s\n",buf_crypto);
+			}
+			set_fs(fs);
+		}while(bytes_read==PAGE_SIZE);
+	}
+
+	if(point->flags==0){
+		do{
+			 printk("In Loop\n");
+                        set_fs(get_ds());
+                        memset(buf,0,PAGE_SIZE);
+                        memset(buf_crypto,0,PAGE_SIZE);
+                        bytes_read = vfs_read(input_f,buf,PAGE_SIZE,&input_f->f_pos);
+                        printk("Bytes Read %d\n",bytes_read);
+                        if(bytes_read<0){
+                                error = -EFAULT;
+                                set_fs(fs);
+                                goto FREEOUTPUTBUF;
+                        }
+                        set_fs(fs);
+                        printk("\nData in Buffer%s\n",buf);
+                        ////////////////////////// CRYPTO CODE //////////////////////////////////////////////////////////////
+
+
+                        if(bytes_read==0)
+                                break;
+                        set_fs(get_ds());
+                        if(bytes_read==PAGE_SIZE){
+                                sg_init_one(&sg_in,buf,PAGE_SIZE);
+                                sg_init_one(&sg_out,buf_crypto,PAGE_SIZE);
+                                crypto_blkcipher_decrypt(&desc,&sg_out,&sg_in, PAGE_SIZE);
+                                vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos);    ///\CHANGE SRC BUFFER TO WHERE YOU WILL WRITE ENCRYPTED DATA
+                        }
+                        else{
+                                sg_init_one(&sg_in,buf,bytes_read);
+                                sg_init_one(&sg_out,buf_crypto,bytes_read);
+                                crypto_blkcipher_decrypt(&desc,&sg_out,&sg_in, bytes_read);
+//                                sg_init_one(&sg_out,buf_crypto,bytes_read);
+                                vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos);
+                                        //printk("Cypto buf data %s\n",buf_crypto);
+                        }
+                        set_fs(fs);
+
+			
+		}while(bytes_read==PAGE_SIZE);
+	}
 		
 	filp_close(tmp_file,NULL);
 
