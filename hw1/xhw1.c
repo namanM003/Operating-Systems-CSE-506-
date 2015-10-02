@@ -31,11 +31,6 @@ int main(int argc,char* argv[])
 	while((option = getopt(argc,argv,"p:edh"))!=-1){
 		switch(option){
 			case 'p':
-				/*if(optarg[0] == '-' && (optarg[1]=='e' || optarg[1]=='d')){
-					errno = EINVAL;
-					fprintf(stderr,"Argument is required for password\n");
-					goto FREEBUF;
-				}*/
 				if(strlen(optarg) < 6){
 					errno = EINVAL;
 			                fprintf(stderr,"Keylength should be atleast 6 characters long. Exiting\n");
@@ -45,10 +40,7 @@ int main(int argc,char* argv[])
 				SHA1((unsigned char*)optarg,strlen(optarg),hash);
 				printf("SHA1 %s\n",hash);
 				length = SHA_DIGEST_LENGTH;
-				//argument.keybuf = malloc(length);
 				memcpy(argument.keybuf,hash,length);
-				//*argument.keybuf + length = NULL;  //CHECK THIS 
-				//printf("Printing %s",argument.key);
 				break;
 			case 'e':
 				flag_encrypt = 1;
@@ -102,22 +94,15 @@ int main(int argc,char* argv[])
 	argument.output_file = malloc(length);
 	memcpy(argument.output_file,argv[optind++],length);
 	argument.keylen = strlen(argument.keybuf);
-	/*if(argument.keylen < 6){
-		fprintf(stderr,"Keylength should be atleast 6 characters long. Exiting\n");
-		goto FREEOUT;	
-	}*/
 	if(flag_encrypt)
 		argument.flags = 1;
 	if(flag_decrypt)
 		argument.flags = 0;
-	//DEBUG MESSAGE COMMENT BEFORE SUBMITTING
 	printf("Printing struct values \n input file %s \noutput file %s \npassphrase %s \n flags %d \n keylegth %d\n",argument.input_file, argument.output_file, argument.keybuf,argument.flags,argument.keylen);
 	/****CODE OF STRUCTURE FILLING END HERE********/
 	/******CODE TO CHECK WHETHER USER HAS READ PERMISSION ON FILE OR NOT*********/
-//	FILE* file_id=NULL;
 	if(stat(argument.input_file,&stat_data)==-1){
 		fprintf(stderr,"File doesn't exist. Please give a valid file name\n");
-		//perror("ERROR:");
 		goto FREEOUT;
 	}
 	if(!S_ISREG(stat_data.st_mode)){
@@ -139,7 +124,6 @@ int main(int argc,char* argv[])
 		}
 		if(stat_data.st_ino == output_file_stat.st_ino){
 			printf("Input and output file may be same. Syscall will check for filesystem \n");
-		//	goto FREEOUT;
 		}
 			
 	}
@@ -147,11 +131,16 @@ int main(int argc,char* argv[])
 
   	rc = syscall(__NR_xcrypt, dummy);
 	if (rc == 0){
-		//printf("syscall returned %d\n", rc);
+		printf("syscall returned %d ",rc);
+		if(flag_encrypt){
+			printf("Encryption Successful\n");
+		}
+		if(flag_decrypt){
+			printf("Decryption Successfull\n");
+		}
 	}
 	else
 		perror("ERROR:");
-	//rc =errno;
 	errno = rc;   //CHECK THIS setting errno to rc beacuse we wiill be returing errno not rc now so that if we encounter an error and system is not executed that also we are returning something meaningful
 	FREEOUT: free(argument.output_file);
 	FREEIN:	 free(argument.input_file);

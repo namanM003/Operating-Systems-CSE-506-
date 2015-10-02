@@ -18,13 +18,14 @@ asmlinkage long xcrypt(void *arg)
 	struct file *output_f = (struct file *)NULL;
 	struct file *tmp_file = (struct file *)NULL;
 	//char *crypt_algo = "aes";
+	unsigned char* keyFromFile;
 	char* temp_file;
 	//long buffersize = PAGE_SIZE;
 	char* buf;
 	char* buf_crypto;
 //	int mode = CRYPTO_TFM_MODE_CBC;
 	char *cipher = "ctr(aes)";
-	char* key;
+	unsigned char* key;
 	struct crypto_blkcipher *blkcipher = NULL;
 	struct blkcipher_desc desc;
 	//char *decrypted;
@@ -229,8 +230,18 @@ asmlinkage long xcrypt(void *arg)
                 goto FREEBUF;
         }
         fs = get_fs();
+	if(point->flags==-1){
+		error = -EINVAL;
+		goto FREEOUTPUTBUF;
+	}
 
 	if(point->flags==1){
+		set_fs(get_ds());
+		//sg_init_one(&sg_in,key,16);
+		//sg_init_one(&sg_out,buf_crypto,16);
+		//crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in,16);
+		vfs_write(tmp_file,key,16,&tmp_file->f_pos);
+		set_fs(fs);
 		do{
 			printk("In Loop\n");
 			set_fs(get_ds());
@@ -270,6 +281,24 @@ asmlinkage long xcrypt(void *arg)
 	}
 
 	if(point->flags==0){
+		set_fs(get_ds());
+		vfs_read(input_f,buf,16,&input_f->f_pos);
+		//sg_init_one(&sg_in,key,16);
+                //sg_init_one(&sg_out,buf_crypto,16);
+                //crypto_blkcipher_decrypt(&desc,&sg_out,&sg_in,16);
+		keyFromFile = kmalloc(16,__GFP_WAIT);
+		if(keyFromFile==NULL){
+			error = -ENOMEM;
+			goto FREEOUTPUTBUF;
+		}	
+                memcpy(keyFromFile, buf,16);
+		if(memcmp(keyFromFile,key,16)){
+			error = -EPERM;
+			kfree(keyFromFile);
+			goto FREEOUTPUTBUF;
+		}
+		kfree(keyFromFile);
+                set_fs(fs);	
 		do{
 			 printk("In Loop\n");
                         set_fs(get_ds());
