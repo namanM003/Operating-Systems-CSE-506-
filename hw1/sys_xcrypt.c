@@ -17,6 +17,12 @@ asmlinkage long xcrypt(void *arg)
 	struct file *input_f = (struct file*)NULL;
 	struct file *output_f = (struct file *)NULL;
 	struct file *tmp_file = (struct file *)NULL;
+	/////VARIABLE FOR HASHING IN KERNE/////////
+	/////CODE EXAMPLE TAKEN FROM http://stackoverflow.com/questions/16861332/how-to-compute-sha1-of-an-array-in-linux-kernel ///////////////////////////////
+	struct scatterlist sg_hash;
+	struct crypto_hash *tfm = NULL;
+	struct hash_desc desc_hash;
+	unsigned char *hashkey;
 	//char *crypt_algo = "aes";
 	unsigned char* keyFromFile;
 	char* temp_file;
@@ -193,14 +199,6 @@ asmlinkage long xcrypt(void *arg)
 		error = -ENOMEM;
 		goto CLOSEINPUTFILE;
 	}
-	/*buf_crypto = kmalloc(PAGE_SIZE,__GFP_WAIT);
-	if(buf_crypto==NULL){
-		error = -ENOMEM;
-		goto FREEBUF;
-	}
-	fs = get_fs();*/
-	//set_fs(get_ds());
-	//input_f->f_op->read(input_f,buf,buffersize,&input_f->f_pos);
 	////// CRYPTO//////
 	blkcipher = crypto_alloc_blkcipher(cipher,0,CRYPTO_ALG_ASYNC);
 	if(IS_ERR(blkcipher)){
@@ -214,11 +212,25 @@ asmlinkage long xcrypt(void *arg)
 	}
 	
 	memset(key, 0, 16);
-	memcpy(key,point->keybuf,16);
+	/////////////////////////////CODE TO HASH KEY IN KERNEL//////////////////////////////////////////////////
+	hashkey = kmalloc(20,__GFP_WAIT);
+	//tfm = 
+//	sg_init_one(&sg_hash,point->keybuf,strlen(point->keybuf));
+	tfm = crypto_alloc_hash("sha1",0,CRYPTO_ALG_ASYNC);
+	desc_hash.tfm = tfm;
+	desc.flags = 0;
+	crypto_hash_init(&desc_hash);
+	sg_init_one(&sg_hash,point->keybuf,16);
+	crypto_hash_update(&desc_hash,&sg_hash,16);
+	crypto_hash_final(&desc_hash,hashkey);
+	crypto_free_hash(tfm);
+	////////////////////////////////////////////////////////////////////////////////////////////////////////	
+	memcpy(key,hashkey,16);
+	printk("HashKey %s\n",hashkey);
 	printk("KeyBuffer %s\n",point->keybuf);
 	if(crypto_blkcipher_setkey(blkcipher,key,16)){
 		printk("Key could not be set");
-		//errno = -EAGAIN;
+		error = -EAGAIN;
 		goto FREEKEY;
 	}
 	printk("Key value %s\n",key);
