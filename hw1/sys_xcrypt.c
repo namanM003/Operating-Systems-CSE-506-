@@ -8,11 +8,13 @@
 #include <linux/string.h>
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
+#include <linux/namei.h>
 #include "input_data.h"
 asmlinkage extern long (*sysptr)(void *arg);
 
 asmlinkage long xcrypt(void *arg)
 {	/******VARIABLE DECLARATIONS**********/
+	struct kstat stat;
 	struct input_data* point = kmalloc(sizeof(struct input_data),__GFP_WAIT);
 	struct file *input_f = (struct file*)NULL;
 	struct file *output_f = (struct file *)NULL;
@@ -34,6 +36,7 @@ asmlinkage long xcrypt(void *arg)
 	unsigned char* key;
 	struct crypto_blkcipher *blkcipher = NULL;
 	struct blkcipher_desc desc;
+	int file_exist = 0;
 	//char *decrypted;
 	mm_segment_t fs;
 	int bytes_read = 0;
@@ -119,7 +122,7 @@ asmlinkage long xcrypt(void *arg)
 		error = -EACCES;
 		goto FREEKEYBUF;
 	}
-	if(copy_from_user(point->keybuf,((struct input_data*)arg)->keybuf,16)){
+	if(copy_from_user(point->keybuf,((struct input_data*)arg)->keybuf,strlen_user(((struct input_data*)arg)->keybuf))){
 		error = -EFAULT;
 		goto FREEKEYBUF;
 	}
@@ -142,7 +145,7 @@ asmlinkage long xcrypt(void *arg)
 		goto FREEKEYBUF;
 	}
 	printk("\n In kernel tryint to crete\n\n");
-	output_f = filp_open(point->output_file,O_WRONLY,0);
+	output_f = filp_open(point->output_file,O_RDONLY,0);
 	printk("If I dont get printed above line is a problem\n");
 	if(IS_ERR(output_f) || output_f == NULL){
 	//	output_f = filp_open(point->output_file,O_WRONLY | O_CREAT,input_f->f_inode->i_mode | S_IWUSR);
@@ -163,7 +166,16 @@ asmlinkage long xcrypt(void *arg)
 		}*/
 	}
 	else{
-		if(!(output_f->f_inode->i_mode & FMODE_WRITE)){
+		file_exist = 1;
+		fs = get_fs();
+		set_fs(get_ds());
+		if(vfs_stat(point->output_file,&stat)){
+			set_fs(fs);
+			error = -EINVAL;
+			goto CLOSEINPUTFILE;
+		}
+		set_fs(fs);
+		if(!(stat.mode & S_IWUSR)){
 			error = -EACCES;
 			filp_close(output_f,NULL);
 			goto CLOSEINPUTFILE;
@@ -220,8 +232,8 @@ asmlinkage long xcrypt(void *arg)
 	desc_hash.tfm = tfm;
 	desc.flags = 0;
 	crypto_hash_init(&desc_hash);
-	sg_init_one(&sg_hash,point->keybuf,16);
-	crypto_hash_update(&desc_hash,&sg_hash,16);
+	sg_init_one(&sg_hash,point->keybuf,strlen(point->keybuf));
+	crypto_hash_update(&desc_hash,&sg_hash,strlen(point->keybuf));
 	crypto_hash_final(&desc_hash,hashkey);
 	crypto_free_hash(tfm);
 	////////////////////////////////////////////////////////////////////////////////////////////////////////	
@@ -351,18 +363,31 @@ asmlinkage long xcrypt(void *arg)
 		}while(bytes_read==PAGE_SIZE);
 	}
 		
-	filp_close(tmp_file,NULL);
+	//filp_close(tmp_file,NULL);
 
 	////////LINKING UNLINK CODE////////////////////////////////////////////////
-
-	
+	if(file_exist == 1){
+		output_f = filp_open(point->output_file,O_RDONLY,0);
+		//mutex_lock(output_f->f_path.dentry->d_parent->d_inode->i_mutex);
+		//vfs_unlink(output_f->f_path.dentry->d_parent->d_inode,f2->f_path.dentry,NULL);
+		//mutex_unlock(output_f->f_path.dentry->d_parent->d_inode->i_mutex);
+		lock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
+		vfs_rename(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, output_f->f_path.dentry->d_parent->d_inode, output_f->f_path.dentry, NULL ,0);
+		unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
+	}
+	else{
+		output_f = filp_open(point->output_file,O_WRONLY | O_CREAT, input_f->f_inode->i_mode | S_IWUSR);
+		lock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
+                vfs_rename(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, output_f->f_path.dentry->d_parent->d_inode, output_f->f_path.dentry, NULL ,0);
+                unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
+	}
 
 
 
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+	filp_close(tmp_file,NULL);
 
 	/**********ARGUMNETS VALIDATION END*************************/
 	/***********LABELS TO FREE AND CLEAN MEMORY**********/

@@ -28,6 +28,7 @@ int main(int argc,char* argv[])
 	printf("No of arguments %d\n\n",argc);
 	unsigned char* hash = malloc(SHA_DIGEST_LENGTH);
 	argument.keybuf = malloc(SHA_DIGEST_LENGTH+1);
+	memset(argument.keybuf,0,SHA_DIGEST_LENGTH+1);
 	while((option = getopt(argc,argv,"p:edh"))!=-1){
 		switch(option){
 			case 'p':
