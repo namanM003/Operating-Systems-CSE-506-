@@ -1,9 +1,11 @@
 XXX: fill in
 ####################################################~~~~~~READ_ME~~~~~###############################################
 NOTE# Not in-order
+I have not attempted Extra Credit Problem.
 How to use syscall.
 	1.) This syscall expects the order to be ./xcipher -p "passphrase" -e/-d inputfile outputfile
 		#NOTE: You should specify inputfile and outputfile as ending arguments only.
+		You can modify order of flags in call but file names should come in last only.
 	2.) You can see how to use system call using ./xcipher -h
 References:
 1.) From this link's I learned and used crypto API
