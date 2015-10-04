@@ -1,8 +1,18 @@
 XXX: fill in
-http://www.logix.cz/michal/devel/cryptodev/cryptoapi-demo.c   From this link I learned and used crypto API
-http://www.chronox.de/crypto-API/ch06s02.html (For Crypto API Example)
-Discussion for crypto API with Aadarsh Jajodia
-Discussion about topics for assignment Ashish Singh
+References:
+NOTE# Not in-order
+
+1.) From this link's I learned and used crypto API
+		-  http://www.logix.cz/michal/devel/cryptodev/cryptoapi-demo.c
+		-  http://www.chronox.de/crypto-API/ch06s02.html (For Crypto API Example)
+		-  http://davejingtian.org/2014/06/18/crypto-use-linux-kernel-crypto-api/
+		Discussion for crypto API with Aadarsh Jajodia
+2.) Discussion about topics for assignment Ashish Kumar Singh
+
 http://davejingtian.org/2014/06/18/crypto-use-linux-kernel-crypto-api/
 http://stackoverflow.com/questions/16861332/how-to-compute-sha1-of-an-array-in-linux-kernel
+http://stackoverflow.com/questions/19195560/whats-wrong-with-vfs-stat-call
+http://stackoverflow.com/questions/22186006/locks-required-for-vfs-rename
+
+
 

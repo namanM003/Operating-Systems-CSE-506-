@@ -14,7 +14,7 @@ asmlinkage extern long (*sysptr)(void *arg);
 
 asmlinkage long xcrypt(void *arg)
 {	/******VARIABLE DECLARATIONS**********/
-	struct kstat stat;
+	struct kstat stat,stat_input;
 	struct input_data* point = kmalloc(sizeof(struct input_data),__GFP_WAIT);
 	struct file *input_f = (struct file*)NULL;
 	struct file *output_f = (struct file *)NULL;
@@ -140,30 +140,30 @@ asmlinkage long xcrypt(void *arg)
 	/*******VARIABLE DECLARATIONS END HERE*******/
 	//struct file *input_f,*output_f;
 	input_f = filp_open(point->input_file,O_RDONLY,0);
-	if(IS_ERR(input_f)){
+	if(IS_ERR(input_f) || input_f==NULL){
+		printk("Input file doesn't exist\n");
 		error = -EFAULT;
 		goto FREEKEYBUF;
 	}
+	fs = get_fs();
+	set_fs(get_ds());
+	if(vfs_stat(point->input_file,&stat_input)){
+		set_fs(fs);
+		error = -EINVAL;
+		goto FREEKEYBUF;
+	}
+	set_fs(fs);
+	if(!(stat_input.mode & S_IRUSR)){
+		error = -EACCES;
+		goto CLOSEINPUTFILE;
+	}
 	printk("\n In kernel tryint to crete\n\n");
 	output_f = filp_open(point->output_file,O_RDONLY,0);
-	printk("If I dont get printed above line is a problem\n");
+	//printk("If I dont get printed above line is a problem\n");
 	if(IS_ERR(output_f) || output_f == NULL){
-	//	output_f = filp_open(point->output_file,O_WRONLY | O_CREAT,input_f->f_inode->i_mode | S_IWUSR);
 		if(output_f==NULL){
 			printk("File doesnt exist\n");
 		}
-		/*else{
-			printk("You dont have permission to read");
-			error = -EACCES;
-			goto CLOSEINPUTFILE;
-		}*/
-		/*printk("\n\n\nCreating a file from inside a kernel\n\n\n");
-		// output_f = filp_open(point->output_file,O_WRONLY | O_CREAT,0777);   //THIS IS TEST CODE
-		if(IS_ERR(output_f)){
-			printk("ERROR: Unable create a new file\n");
-			error = -EFAULT;
-			goto CLOSEINPUTFILE;
-		}*/
 	}
 	else{
 		file_exist = 1;
@@ -200,7 +200,7 @@ asmlinkage long xcrypt(void *arg)
 	memset(temp_file,0,strlen(point->output_file)+5);
 	strcpy(temp_file,point->output_file/*,strlen(point->output_file)*/);
 	strcat(temp_file,".tmp");
-	tmp_file = filp_open(temp_file,O_WRONLY | O_CREAT,input_f->f_inode->i_mode | S_IWUSR);
+	tmp_file = filp_open(temp_file,O_WRONLY | O_CREAT,stat_input.mode | S_IWUSR);
 	if(IS_ERR(tmp_file)){
 		error = -EFAULT;
 		goto CLOSEINPUTFILE;
@@ -376,7 +376,7 @@ asmlinkage long xcrypt(void *arg)
 		unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
 	}
 	else{
-		output_f = filp_open(point->output_file,O_WRONLY | O_CREAT, input_f->f_inode->i_mode | S_IWUSR);
+		output_f = filp_open(point->output_file,O_WRONLY | O_CREAT, stat_input.mode | S_IWUSR);
 		lock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
                 vfs_rename(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, output_f->f_path.dentry->d_parent->d_inode, output_f->f_path.dentry, NULL ,0);
                 unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
