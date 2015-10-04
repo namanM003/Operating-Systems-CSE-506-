@@ -1,18 +1,23 @@
 XXX: fill in
-References:
+####################################################~~~~~~READ_ME~~~~~###############################################
 NOTE# Not in-order
-
+How to use syscall.
+	1.) This syscall expects the order to be ./xcipher -p "passphrase" -e/-d inputfile outputfile
+		#NOTE: You should specify inputfile and outputfile as ending arguments only.
+	2.) You can see how to use system call using ./xcipher -h
+References:
 1.) From this link's I learned and used crypto API
 		-  http://www.logix.cz/michal/devel/cryptodev/cryptoapi-demo.c
 		-  http://www.chronox.de/crypto-API/ch06s02.html (For Crypto API Example)
 		-  http://davejingtian.org/2014/06/18/crypto-use-linux-kernel-crypto-api/
 		Discussion for crypto API with Aadarsh Jajodia
 2.) Discussion about topics for assignment Ashish Kumar Singh
+3.) Link from where I learned how to compute SHA1 inside Kernel
+	http://stackoverflow.com/questions/16861332/how-to-compute-sha1-of-an-array-in-linux-kernel
+4.) Link from where I understood structure of VFS Stat call.
+	http://stackoverflow.com/questions/19195560/whats-wrong-with-vfs-stat-call
+5.) Link from where I understood about locking in VFS rename.
+	http://stackoverflow.com/questions/22186006/locks-required-for-vfs-rename
 
-http://davejingtian.org/2014/06/18/crypto-use-linux-kernel-crypto-api/
-http://stackoverflow.com/questions/16861332/how-to-compute-sha1-of-an-array-in-linux-kernel
-http://stackoverflow.com/questions/19195560/whats-wrong-with-vfs-stat-call
-http://stackoverflow.com/questions/22186006/locks-required-for-vfs-rename
-
-
+##############################################~~~~READ_ME ENDS HERE~~~~~#############################################
 

@@ -19,7 +19,6 @@ asmlinkage long xcrypt(void *arg)
 	struct file *input_f = (struct file*)NULL;
 	struct file *output_f = (struct file *)NULL;
 	struct file *tmp_file = (struct file *)NULL;
-	/////VARIABLE FOR HASHING IN KERNE/////////
 	/////CODE EXAMPLE TAKEN FROM http://stackoverflow.com/questions/16861332/how-to-compute-sha1-of-an-array-in-linux-kernel ///////////////////////////////
 	struct scatterlist sg_hash;
 	struct crypto_hash *tfm = NULL;
@@ -43,20 +42,20 @@ asmlinkage long xcrypt(void *arg)
 	/*******************VALIDATIONS START HERE************************/
 	if(arg==NULL){
 		error = -EINVAL;
-		goto LERROR;
+		goto freestructure;
 	}
 	if(point==NULL){
 		error = -ENOMEM;
-		goto LERROR;
+		goto freestructure;
 	}
 	point->flags = -1;
 	if(!access_ok(VERIFY_READ,arg,sizeof(struct input_data))){
 		error = -EACCES;
-		goto LERROR;
+		goto freestructure;
 	}
 	if(copy_from_user(point,(struct input_data*)arg,sizeof(struct input_data))){
 		error =  -EFAULT;
-		goto LERROR;
+		goto freestructure;
 	}
 
 	/**********CODE TO COPY INPUT FILE PATH/NAME****************/
@@ -64,21 +63,21 @@ asmlinkage long xcrypt(void *arg)
 	if(((struct input_data*)arg)->input_file == NULL){
 		printk("input file argument passed not passed\n");
 		error = -EINVAL;
-		goto LERROR;
+		goto freestructure;
 	}
 	/////////////////////////////////////////////////////////////////////////////////////////
 	point->input_file = kmalloc(strlen_user(((struct input_data*)arg)->input_file)+1,__GFP_WAIT);
 	if(point->input_file==NULL){
 		error = -ENOMEM;
-		goto FREEINFILE;
+		goto freeinputfilepath;
 	}
 	if(!access_ok(VERIFY_READ,((struct input_data*)arg)->input_file,strlen_user(((struct input_data*)arg)->input_file)+1)){
 		error = -EACCES;
-		goto FREEINFILE;
+		goto freeinputfilepath;
 	}
 	if(copy_from_user(point->input_file,((struct input_data*)arg)->input_file,strlen_user(((struct input_data*)arg)->input_file)+1)){
 		error = -EFAULT;
-		goto FREEINFILE;
+		goto freeinputfilepath;
 	}
 
 
@@ -87,41 +86,41 @@ asmlinkage long xcrypt(void *arg)
 	if(((struct input_data*)arg)->output_file==NULL){
 		printk("Missing output file argument\n");
 		error = -EINVAL;
-		goto FREEINFILE;
+		goto freeinputfilepath;
 	}
 	////////////////////////////////////////////////////////////////////////////////////
 	point->output_file = kmalloc(strlen_user(((struct input_data*)arg)->output_file)+1,__GFP_WAIT);
 	if(point->output_file==NULL){
 		error = -ENOMEM;
-		goto FREEOUTFILE;
+		goto freeoutputfilepath;
 	}
 	if(!access_ok(VERIFY_READ,((struct input_data*)arg)->output_file,strlen_user(((struct input_data*)arg)->output_file)+1)){
                 error = -EACCES;
-		goto FREEOUTFILE;
+		goto freeoutputfilepath;
 	}
 	if(copy_from_user(point->output_file,((struct input_data*)arg)->output_file,strlen_user(((struct input_data*)arg)->output_file)+1)){
 		error = -EFAULT;
-		goto FREEOUTFILE;
+		goto freeoutputfilepath;
 	}
 	/********CODE TO COPY KEY PHRASE*******************/
 	 if(((struct input_data*)arg)->keybuf==NULL){
                 printk("Missing passphrase \n");
                 error = -EINVAL;
-                goto FREEOUTFILE;
+                goto freeoutputfilepath;
         }
 
 	point->keybuf = kmalloc(16,__GFP_WAIT);
 	if(point->keybuf==NULL){
 		error =  -ENOMEM;
-		goto FREEKEYBUF;
+		goto freekeybuf;
 	}
 	if(!access_ok(VERIFY_READ,((struct input_data*)arg)->keybuf,strlen_user(((struct input_data*)arg)->keybuf)+1)){
 		error = -EACCES;
-		goto FREEKEYBUF;
+		goto freekeybuf;
 	}
 	if(copy_from_user(point->keybuf,((struct input_data*)arg)->keybuf,strlen_user(((struct input_data*)arg)->keybuf))){
 		error = -EFAULT;
-		goto FREEKEYBUF;
+		goto freekeybuf;
 	}
 	/*****************END OF COPYING********************/
 	/****************FILE VALIDATIONS CODE START HERE***********************/
@@ -131,25 +130,24 @@ asmlinkage long xcrypt(void *arg)
 	if(IS_ERR(input_f) || input_f==NULL){
 		printk("Input file doesn't exist\n");
 		error = -EFAULT;
-		goto FREEKEYBUF;
+		goto freekeybuf;
 	}
 	if(!S_ISREG(input_f->f_inode->i_mode)){
 		error = -EBADF;
-		goto CLOSEINPUTFILE;
+		goto closeinputfile;
 	}
 	fs = get_fs();
 	set_fs(get_ds());
 	if(vfs_stat(point->input_file,&stat_input)){
 		set_fs(fs);
 		error = -EINVAL;
-		goto CLOSEINPUTFILE;
+		goto closeinputfile;
 	}
 	set_fs(fs);
 	if(!(stat_input.mode & S_IRUSR)){
 		error = -EACCES;
-		goto CLOSEINPUTFILE;
+		goto closeinputfile;
 	}
-//	printk("\n In kernel trying to crete\n\n");
 	/////////////////////////INPUT FILE VALIDATION CODE ENDS/////////////////////////////////////////////
 	/////////////////////////OUTPUT FILE VALIDATION CODE STARTS HERE/////////////////////////////////////
 	output_f = filp_open(point->output_file,O_RDONLY,0);
@@ -162,27 +160,27 @@ asmlinkage long xcrypt(void *arg)
 		file_exist = 1;
 		if(!S_ISREG(output_f->f_inode->i_mode)){
          	        error = -EBADF;
-                	goto CLOSEINPUTFILE;
+                	goto closeinputfile;
         	}
 		fs = get_fs();
 		set_fs(get_ds());
 		if(vfs_stat(point->output_file,&stat)){
 			set_fs(fs);
 			error = -EINVAL;
-			goto CLOSEINPUTFILE;
+			goto closeinputfile;
 		}
 		set_fs(fs);
 		if(!(stat.mode & S_IWUSR)){
 			error = -EACCES;
 			filp_close(output_f,NULL);
-			goto CLOSEINPUTFILE;
+			goto closeinputfile;
 		}
 		if(input_f->f_inode->i_ino == output_f->f_inode->i_ino){
 	                if(input_f->f_inode->i_sb->s_type->name == output_f->f_inode->i_sb->s_type->name){
         	                error = -EINVAL;
                 	        printk("Input and Output file are same. Exiting\n");
 				filp_close(output_f,NULL);
-                        	goto CLOSEINPUTFILE;
+                        	goto closeinputfile;
                 	}
         	}	
 
@@ -194,27 +192,22 @@ asmlinkage long xcrypt(void *arg)
 	memset(temp_file,0,strlen(point->output_file)+5);
 	strcpy(temp_file,point->output_file/*,strlen(point->output_file)*/);
 	strcat(temp_file,".tmp");
-	tmp_file = filp_open(temp_file,O_WRONLY | O_CREAT,stat_input.mode | S_IWUSR);
-	if(IS_ERR(tmp_file)){
-		error = -EFAULT;
-		goto CLOSEINPUTFILE;
-	}
 	buf = kmalloc(PAGE_SIZE,__GFP_WAIT);
 	
 	if(buf==NULL){
 		error = -ENOMEM;
-		goto CLOSEINPUTFILE;
+		goto closeinputfile;
 	}
 	///////////////////////////////// CRYPTO CODE STARTS HERE//////////////////////////////////
 	blkcipher = crypto_alloc_blkcipher(cipher,0,CRYPTO_ALG_ASYNC);
 	if(IS_ERR(blkcipher)){
 		printk("Could not allocate blkcipher handle for %s\n",cipher);
-		goto FREEBUF;
+		goto freeinputbuf;
 	}
 	key = kmalloc(16,__GFP_WAIT);
 	if(key==NULL){
 		error = -ENOMEM;
-		goto CLEARBUFFER;
+		goto clearcryptoalloc;
 	}
 	
 	memset(key, 0, 16);
@@ -222,7 +215,7 @@ asmlinkage long xcrypt(void *arg)
 	hashkey = kmalloc(20,__GFP_WAIT);
 	if(hashkey==NULL){
 		error = -ENOMEM;
-		goto FREEKEY;
+		goto freekey;
 	}
 	tfm = crypto_alloc_hash("sha1",0,CRYPTO_ALG_ASYNC);
 	desc_hash.tfm = tfm;
@@ -239,7 +232,7 @@ asmlinkage long xcrypt(void *arg)
 	if(crypto_blkcipher_setkey(blkcipher,key,16)){
 		printk("Key could not be set");
 		error = -EAGAIN;
-		goto FREEHASHKEY;
+		goto freehashkey;
 	}
 	//printk("Key value %s\n",key);
 	desc.flags = 0;
@@ -247,13 +240,19 @@ asmlinkage long xcrypt(void *arg)
 	buf_crypto = kmalloc(PAGE_SIZE,__GFP_WAIT);
         if(buf_crypto==NULL){
                 error = -ENOMEM;
-                goto FREEHASHKEY;
+                goto freehashkey;
         }
         fs = get_fs();
-	//////////////////THIS PIECE OF CODE CHECK WHETHER THE FLAG WAS SET OR NOT/////////////////////////
+	tmp_file = filp_open(temp_file,O_WRONLY | O_CREAT,stat_input.mode | S_IWUSR);
+        if(IS_ERR(tmp_file)){
+                error = -EFAULT;
+                goto freecryptobuf;
+        }
+
+	//////////////////THIS PIECE OF CODE CHECK WHETHER THE FLAG TO ENCRYPT OT DECRYPT WAS SET OR NOT/////////////////////////
 	if(point->flags==-1){
 		error = -EINVAL;
-		goto FREEOUTPUTBUF;
+		goto removetmpfile;
 	}
 	////////////////////FLAG CHECK CODE ENDS HERE/////////////////////////////////////////////////////
 
@@ -271,7 +270,7 @@ asmlinkage long xcrypt(void *arg)
 			if(bytes_read<0){
 				error = -EFAULT;
 				set_fs(fs);
-				goto FREEOUTPUTBUF;
+				goto removetmpfile;
 			}
 			set_fs(fs);
 			//printk("\nData in Buffer%s\n",buf);
@@ -287,8 +286,9 @@ asmlinkage long xcrypt(void *arg)
 				crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in, PAGE_SIZE);
 				if((vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos)<PAGE_SIZE)){
 					printk("VFS WRITE FAILED\n");
+					error = -ENOMEM;
 					set_fs(fs);
-					goto REMOVETMPFILE;
+					goto removetmpfile;
 				}   
 			}
 			else{
@@ -297,8 +297,9 @@ asmlinkage long xcrypt(void *arg)
 				crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in, bytes_read);
 				if((vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos))<bytes_read){
 					printk("VFS Write Failed\n");
+					error = -ENOMEM;
 					set_fs(fs);
-					goto REMOVETMPFILE;
+					goto removetmpfile;
 				}
 			}
 			set_fs(fs);
@@ -311,13 +312,14 @@ asmlinkage long xcrypt(void *arg)
 		keyFromFile = kmalloc(16,__GFP_WAIT);
 		if(keyFromFile==NULL){
 			error = -ENOMEM;
-			goto FREEOUTPUTBUF;
+			goto removetmpfile;
 		}	
                 memcpy(keyFromFile, buf,16);
 		if(memcmp(keyFromFile,key,16)){
-			error = -EPERM;
+			error = -EINVAL;
+			printk("Incorrect Passpharse\n");
 			kfree(keyFromFile);
-			goto FREEOUTPUTBUF;
+			goto removetmpfile;
 		}
 		kfree(keyFromFile);
                 set_fs(fs);	
@@ -327,11 +329,11 @@ asmlinkage long xcrypt(void *arg)
                         memset(buf,0,PAGE_SIZE);
                         memset(buf_crypto,0,PAGE_SIZE);
                         bytes_read = vfs_read(input_f,buf,PAGE_SIZE,&input_f->f_pos);
-                        printk("Bytes Read %d\n",bytes_read);
+                        //printk("Bytes Read %d\n",bytes_read);
                         if(bytes_read<0){
                                 error = -EFAULT;
                                 set_fs(fs);
-                                goto FREEOUTPUTBUF;
+                                goto removetmpfile;
                         }
                         set_fs(fs);
                         //printk("\nData in Buffer%s\n",buf);
@@ -346,9 +348,10 @@ asmlinkage long xcrypt(void *arg)
                                 sg_init_one(&sg_out,buf_crypto,PAGE_SIZE);
                                 crypto_blkcipher_decrypt(&desc,&sg_out,&sg_in, PAGE_SIZE);
                                 if((vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos))<PAGE_SIZE){
-					printk("VFS Write Failed\n");
+					printk("VFS Writie Failed\n");
+					error = -ENOMEM;
 					set_fs(fs);
-                                        goto REMOVETMPFILE;
+                                        goto removetmpfile;
                                 }
 
                         }
@@ -358,8 +361,9 @@ asmlinkage long xcrypt(void *arg)
                                 crypto_blkcipher_decrypt(&desc,&sg_out,&sg_in, bytes_read);
                                 if((vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos))<bytes_read){
 					printk("VFS Write Failed\n");
+					error = -ENOMEM;
 					set_fs(fs);
-                                        goto REMOVETMPFILE;
+                                        goto removetmpfile;
                                 }
 
                         }
@@ -376,34 +380,36 @@ asmlinkage long xcrypt(void *arg)
 		lock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
 		vfs_rename(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, output_f->f_path.dentry->d_parent->d_inode, output_f->f_path.dentry, NULL ,0);
 		unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
-		goto FREEOUTPUTBUF;
+		goto closetmpfile;
 	}
 	else{
 		output_f = filp_open(point->output_file,O_WRONLY | O_CREAT, stat_input.mode | S_IWUSR);
 		lock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
                 vfs_rename(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, output_f->f_path.dentry->d_parent->d_inode, output_f->f_path.dentry, NULL ,0);
                 unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
-		goto FREEOUTPUTBUF;
+		goto closetmpfile;
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	/**********ARGUMNETS VALIDATION END*************************/
 	/***********LABELS TO FREE AND CLEAN MEMORY**********/
-	REMOVETMPFILE: mutex_lock(&tmp_file->f_path.dentry->d_parent->d_inode->i_mutex);
+	removetmpfile: set_fs(get_ds());
+		       mutex_lock(&tmp_file->f_path.dentry->d_parent->d_inode->i_mutex);
 		       vfs_unlink(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, NULL);
 		       mutex_unlock(&tmp_file->f_path.dentry->d_parent->d_inode->i_mutex);
-	FREEOUTPUTBUF: kfree(buf_crypto);
-	FREEHASHKEY: kfree(hashkey);
-	FREEKEY: kfree(key);
-	CLEARBUFFER: crypto_free_blkcipher(blkcipher);
-		      filp_close(tmp_file,NULL);
-	FREEBUF: kfree(buf);
-	CLOSEINPUTFILE: filp_close(input_f,NULL);
-	FREEKEYBUF: kfree(point->keybuf);
-	FREEOUTFILE: kfree(point->output_file);
-	FREEINFILE: kfree(point->input_file);
-	LERROR: kfree(point);
+		       set_fs(fs);
+	closetmpfile: filp_close(tmp_file,NULL); 
+	freecryptobuf: kfree(buf_crypto);
+	freehashkey: kfree(hashkey);
+	freekey: kfree(key);
+	clearcryptoalloc: crypto_free_blkcipher(blkcipher);
+	freeinputbuf: kfree(buf);
+	closeinputfile: filp_close(input_f,NULL);
+	freekeybuf: kfree(point->keybuf);
+	freeoutputfilepath: kfree(point->output_file);
+	freeinputfilepath: kfree(point->input_file);
+	freestructure: kfree(point);
 		return error;
 }
 
@@ -423,3 +429,4 @@ static void  __exit exit_sys_xcrypt(void)
 module_init(init_sys_xcrypt);
 module_exit(exit_sys_xcrypt);
 MODULE_LICENSE("GPL");
+
