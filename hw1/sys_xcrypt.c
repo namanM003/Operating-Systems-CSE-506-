@@ -214,12 +214,16 @@ asmlinkage long xcrypt(void *arg)
 	key = kmalloc(16,__GFP_WAIT);
 	if(key==NULL){
 		error = -ENOMEM;
-		goto FREEKEY;
+		goto CLEARBUFFER;
 	}
 	
 	memset(key, 0, 16);
 	/////////////////////////////CODE TO HASH KEY IN KERNEL//////////////////////////////////////////////////
 	hashkey = kmalloc(20,__GFP_WAIT);
+	if(hashkey==NULL){
+		error = -ENOMEM;
+		goto FREEKEY;
+	}
 	tfm = crypto_alloc_hash("sha1",0,CRYPTO_ALG_ASYNC);
 	desc_hash.tfm = tfm;
 	desc.flags = 0;
@@ -235,7 +239,7 @@ asmlinkage long xcrypt(void *arg)
 	if(crypto_blkcipher_setkey(blkcipher,key,16)){
 		printk("Key could not be set");
 		error = -EAGAIN;
-		goto FREEKEY;
+		goto FREEHASHKEY;
 	}
 	//printk("Key value %s\n",key);
 	desc.flags = 0;
@@ -243,7 +247,7 @@ asmlinkage long xcrypt(void *arg)
 	buf_crypto = kmalloc(PAGE_SIZE,__GFP_WAIT);
         if(buf_crypto==NULL){
                 error = -ENOMEM;
-                goto FREEBUF;
+                goto FREEHASHKEY;
         }
         fs = get_fs();
 	//////////////////THIS PIECE OF CODE CHECK WHETHER THE FLAG WAS SET OR NOT/////////////////////////
@@ -258,19 +262,19 @@ asmlinkage long xcrypt(void *arg)
 		vfs_write(tmp_file,key,16,&tmp_file->f_pos);
 		set_fs(fs);
 		do{
-			printk("In Loop\n");
+			//printk("In Loop\n");
 			set_fs(get_ds());
 			memset(buf,0,PAGE_SIZE);
 			memset(buf_crypto,0,PAGE_SIZE);
 			bytes_read = vfs_read(input_f,buf,PAGE_SIZE,&input_f->f_pos);
-			printk("Bytes Read %d\n",bytes_read);
+			//printk("Bytes Read %d\n",bytes_read);
 			if(bytes_read<0){
 				error = -EFAULT;
 				set_fs(fs);
 				goto FREEOUTPUTBUF;
 			}
 			set_fs(fs);
-			printk("\nData in Buffer%s\n",buf);
+			//printk("\nData in Buffer%s\n",buf);
 			////////////////////////// CRYPTO CODE //////////////////////////////////////////////////////////////
 			 
 		
@@ -281,13 +285,21 @@ asmlinkage long xcrypt(void *arg)
 				sg_init_one(&sg_in,buf,PAGE_SIZE);
 				sg_init_one(&sg_out,buf_crypto,PAGE_SIZE);
 				crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in, PAGE_SIZE);
-				vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos);   
+				if((vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos)<PAGE_SIZE)){
+					printk("VFS WRITE FAILED\n");
+					set_fs(fs);
+					goto REMOVETMPFILE;
+				}   
 			}
 			else{
 				sg_init_one(&sg_in,buf,bytes_read);
 				sg_init_one(&sg_out,buf_crypto,bytes_read);
 				crypto_blkcipher_encrypt(&desc,&sg_out,&sg_in, bytes_read);
-				vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos);
+				if((vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos))<bytes_read){
+					printk("VFS Write Failed\n");
+					set_fs(fs);
+					goto REMOVETMPFILE;
+				}
 			}
 			set_fs(fs);
 		}while(bytes_read==PAGE_SIZE);
@@ -310,7 +322,7 @@ asmlinkage long xcrypt(void *arg)
 		kfree(keyFromFile);
                 set_fs(fs);	
 		do{
-			 printk("In Loop\n");
+			 //printk("In Loop\n");
                         set_fs(get_ds());
                         memset(buf,0,PAGE_SIZE);
                         memset(buf_crypto,0,PAGE_SIZE);
@@ -322,7 +334,7 @@ asmlinkage long xcrypt(void *arg)
                                 goto FREEOUTPUTBUF;
                         }
                         set_fs(fs);
-                        printk("\nData in Buffer%s\n",buf);
+                        //printk("\nData in Buffer%s\n",buf);
                         ////////////////////////// CRYPTO CODE //////////////////////////////////////////////////////////////
 
 
@@ -333,13 +345,23 @@ asmlinkage long xcrypt(void *arg)
                                 sg_init_one(&sg_in,buf,PAGE_SIZE);
                                 sg_init_one(&sg_out,buf_crypto,PAGE_SIZE);
                                 crypto_blkcipher_decrypt(&desc,&sg_out,&sg_in, PAGE_SIZE);
-                                vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos); 
+                                if((vfs_write(tmp_file,buf_crypto,PAGE_SIZE,&tmp_file->f_pos))<PAGE_SIZE){
+					printk("VFS Write Failed\n");
+					set_fs(fs);
+                                        goto REMOVETMPFILE;
+                                }
+
                         }
                         else{
                                 sg_init_one(&sg_in,buf,bytes_read);
                                 sg_init_one(&sg_out,buf_crypto,bytes_read);
                                 crypto_blkcipher_decrypt(&desc,&sg_out,&sg_in, bytes_read);
-                                vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos);
+                                if((vfs_write(tmp_file,buf_crypto,bytes_read,&tmp_file->f_pos))<bytes_read){
+					printk("VFS Write Failed\n");
+					set_fs(fs);
+                                        goto REMOVETMPFILE;
+                                }
+
                         }
                         set_fs(fs);
 
@@ -354,29 +376,29 @@ asmlinkage long xcrypt(void *arg)
 		lock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
 		vfs_rename(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, output_f->f_path.dentry->d_parent->d_inode, output_f->f_path.dentry, NULL ,0);
 		unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
+		goto FREEOUTPUTBUF;
 	}
 	else{
 		output_f = filp_open(point->output_file,O_WRONLY | O_CREAT, stat_input.mode | S_IWUSR);
 		lock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
                 vfs_rename(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, output_f->f_path.dentry->d_parent->d_inode, output_f->f_path.dentry, NULL ,0);
                 unlock_rename(tmp_file->f_path.dentry->d_parent,output_f->f_path.dentry->d_parent);
+		goto FREEOUTPUTBUF;
 	}
 
-
-
-
-
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	filp_close(tmp_file,NULL);
 
 	/**********ARGUMNETS VALIDATION END*************************/
 	/***********LABELS TO FREE AND CLEAN MEMORY**********/
-			crypto_free_blkcipher(blkcipher);
-			
+	REMOVETMPFILE: mutex_lock(&tmp_file->f_path.dentry->d_parent->d_inode->i_mutex);
+		       vfs_unlink(tmp_file->f_path.dentry->d_parent->d_inode, tmp_file->f_path.dentry, NULL);
+		       mutex_unlock(&tmp_file->f_path.dentry->d_parent->d_inode->i_mutex);
 	FREEOUTPUTBUF: kfree(buf_crypto);
+	FREEHASHKEY: kfree(hashkey);
 	FREEKEY: kfree(key);
+	CLEARBUFFER: crypto_free_blkcipher(blkcipher);
+		      filp_close(tmp_file,NULL);
 	FREEBUF: kfree(buf);
-	//CLOSEOUTPUTFILE: filp_close(output_f,NULL);
 	CLOSEINPUTFILE: filp_close(input_f,NULL);
 	FREEKEYBUF: kfree(point->keybuf);
 	FREEOUTFILE: kfree(point->output_file);
