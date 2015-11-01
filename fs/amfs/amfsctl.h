@@ -1,0 +1,9 @@
+#include <linux/ioctl.h>
+#define AMFSCTL_MAGIC_NUMBER 999
+#define AMFSCTL_READ_PATTERN _IOR(AMFSCTL_MAGIC_NUMBER,0,char *)
+#define AMFSCTL_ADD_PATTERN _IOW(AMFSCTL_MAGIC_NUMBER,1,char *)
+#define AMFSCTL_REMOVE_PATTERN _IOW(AMFSCTL_MAGIC_NUMBER,2,char *)
+
+#define AMFSCTL_MAGIC_MAX 2
+
+//source : http://stackoverflow.com/questions/18964744/ioctl-call-not-working-to-read-and-write-the-device
