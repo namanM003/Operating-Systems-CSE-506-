@@ -34,10 +34,13 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	int counter = 0;
 	char *token = NULL;
 	struct inode *inode;
+	char* pattern_db_pointer = NULL;
+	pattern_db_pointer = kzalloc(strlen(void_attachment->pattern_db_pointer)+1,__GFP_WAIT);
+	strncpy(pattern_db_pointer,void_attachment->pattern_db_pointer,strlen(void_attachment->pattern_db_pointer)+1);
 	mm_segment_t old_fs = get_fs();
 	printk("Inside read super\n");
-	printk("File name %s\n",(char*)void_attachment->pattern_db_pointer);
-	pattern_db = filp_open((char*)void_attachment->pattern_db_pointer,O_RDONLY,0);
+	printk("File name %s\n",pattern_db_pointer);
+	pattern_db = filp_open(pattern_db_pointer,O_RDONLY,0);
 	printk("Succesfully opened pattern file\n");
 	if(pattern_db==NULL || IS_ERR(pattern_db)){
 		err = -EINVAL;
@@ -116,7 +119,7 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	/* set the lower superblock field of upper superblock */
 	lower_sb = lower_path.dentry->d_sb;
 	atomic_inc(&lower_sb->s_active);
-	amfs_set_lower_super(sb, lower_sb,void_attachment->pattern_db_pointer,patterns);
+	amfs_set_lower_super(sb, lower_sb,pattern_db_pointer,patterns);
 
 	/* inherit maxbytes from lower file system */
 	sb->s_maxbytes = lower_sb->s_maxbytes;

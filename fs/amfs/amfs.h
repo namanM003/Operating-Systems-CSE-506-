@@ -156,8 +156,8 @@ static inline void amfs_set_lower_super(struct super_block *sb,
 {
 	AMFS_SB(sb)->lower_sb = val;
 	//AMFS_SB(sb)->pattern_db = pattern_db;
-	AMFS_SB(sb)->pattern_db = (char*)kzalloc(strlen(pattern_db)+1,__GFP_WAIT);
-	strcpy(AMFS_SB(sb)->pattern_db,pattern_db);
+//	AMFS_SB(sb)->pattern_db = (char*)kzalloc(strlen(pattern_db)+1,__GFP_WAIT);
+	AMFS_SB(sb)->pattern_db = pattern_db;
 	
 	printk("Testing supervlock value %s in wrapfs.h\n",AMFS_SB(sb)->pattern_db);
 	AMFS_SB(sb)->pattern_list_head = ptrn;

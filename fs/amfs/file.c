@@ -70,7 +70,7 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 {
 	long err = -ENOTTY;
 	struct file *lower_file;
-	
+	printk("In IOCTL\n");
 	lower_file = amfs_lower_file(file);
 	/**********************************************CODE TO SWITCH AS PER IOCTL ROLE*********************************************/
 	switch(cmd){
