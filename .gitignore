@@ -105,3 +105,10 @@ all.config
 
 # Kdevelop4
 *.kdev4
+
+#ctags
+fs/tags
+fs/wrapfs/tags
+fs/amfs/compile_amfs.sh
+fs/amfs/unmount_script.sh
+fs/amfs/mount_script.sh

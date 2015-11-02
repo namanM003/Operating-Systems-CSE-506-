@@ -70,16 +70,24 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 {
 	long err = -ENOTTY;
 	struct file *lower_file;
-
+	
 	lower_file = amfs_lower_file(file);
 	/**********************************************CODE TO SWITCH AS PER IOCTL ROLE*********************************************/
 	switch(cmd){
 		case AMFSCTL_ADD_PATTERN: printk("In add pattern\n");
+					printk("Checking file name %s\n",AMFS_SB(file->f_inode->i_sb)->pattern_db);
 					break;
 		case AMFSCTL_REMOVE_PATTERN:
 					printk("In remove pattern\n");
 					break;
 		case AMFSCTL_READ_PATTERN:
+					printk("Checking file name %s\n",AMFS_SB(file->f_inode->i_sb)->pattern_db);
+					struct pattern *tmp;
+					struct pattern *tmp_head;
+					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+					list_for_each_entry(tmp, &tmp_head->pattern_list , pattern_list)
+						printk("%s pattern ", tmp->patrn);
+					
 					printk("In Read Pattern\n");
 					break;
 		default:

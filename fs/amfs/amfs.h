@@ -97,7 +97,7 @@ struct amfs_dentry_info {
 /* amfs super-block data in memory */
 struct amfs_sb_info {
 	struct super_block *lower_sb;
-	const char* pattern_db;
+	char* pattern_db;
 	struct pattern *pattern_list_head;
 };
 
@@ -155,7 +155,11 @@ static inline void amfs_set_lower_super(struct super_block *sb,
 					  struct super_block *val, char* pattern_db, struct pattern* ptrn)
 {
 	AMFS_SB(sb)->lower_sb = val;
-	AMFS_SB(sb)->pattern_db = pattern_db;
+	//AMFS_SB(sb)->pattern_db = pattern_db;
+	AMFS_SB(sb)->pattern_db = (char*)kzalloc(strlen(pattern_db)+1,__GFP_WAIT);
+	strcpy(AMFS_SB(sb)->pattern_db,pattern_db);
+	
+	printk("Testing supervlock value %s in wrapfs.h\n",AMFS_SB(sb)->pattern_db);
 	AMFS_SB(sb)->pattern_list_head = ptrn;
 }
 

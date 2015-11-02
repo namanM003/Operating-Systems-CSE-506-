@@ -78,6 +78,7 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 		printk("Pattern %s\n",pat->patrn);
 		list_add_tail(&pat->pattern_list,&(patterns->pattern_list));
 		counter = counter+strlen(token)+1;
+		printk("Value of counter %d\n",counter);
 	}
 	
 	
