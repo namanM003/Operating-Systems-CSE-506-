@@ -18,7 +18,7 @@ int main(int argc, char **argv){
 	int code = -1;
 	int list_flag = 0;
 	char *pattern = NULL;
-	char delimeter = '\n'';
+	char delimeter = '\n';
 //	char* buffer = NULL;
 	printf("Before while loop\n");
 	while((c = getopt(argc, argv, "la:r:"))!=-1){
@@ -89,11 +89,7 @@ int main(int argc, char **argv){
 
 	}
 	if(list_flag){
-		pattern = strtok(option,delimeter);
-		while(pattern != NULL){
-			printf("%s\n",pattern);
-			pattern = strtok(NULL,option);
-		}
+		printf("%s",option);
 		free(option);
 	}
 		

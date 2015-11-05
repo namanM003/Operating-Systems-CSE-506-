@@ -76,6 +76,7 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 	int counter = 0;
 	mm_segment_t old_fs;
 	char buffer = '\n';
+	char* list_ioctl_buffer = NULL;
 	int flag = 0;
 	struct list_head *pos = NULL, *q = NULL; //Will be used to delete a node safely;
 	printk("In IOCTL\n");
@@ -167,12 +168,16 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 					//struct pattern *tmp;
 					//struct pattern *tmp_head;
 					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-					
+					list_ioctl_buffer = (char*)kzalloc(PAGE_SIZE,__GFP_WAIT);
 					list_for_each_entry(tmp, &tmp_head->pattern_list , pattern_list){
 						printk("%s pattern ", tmp->patrn);
-						copy_to_user((char*)arg,tmp->patrn,strlen(tmp->patrn));
+						strcat(list_ioctl_buffer,tmp->patrn);
+						strcat(list_ioctl_buffer,"\n");
+						
 						
 					}
+					copy_to_user((char*)arg,list_ioctl_buffer,PAGE_SIZE);
+					kfree(list_ioctl_buffer);
 					
 					printk("In Read Pattern\n");
 					err = 0;
