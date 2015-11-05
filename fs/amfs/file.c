@@ -50,18 +50,19 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
 
 	struct file *lower_file;
 	struct dentry *dentry = file->f_path.dentry;
-
+	struct pattern *tmp_head = NULL;
+	struct pattern *pattern = NULL;
 	lower_file = amfs_lower_file(file);
 	err = vfs_write(lower_file, buf, count, ppos);
 	/* update our inode times+sizes upon a successful lower write */
-	/*tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-	list_for_each_entry(list_pat, &tmp_head->pattern_list ,i pattern_list){
-        	if(strstr(buf,tmp->patrn)){
-			printk("Pattern Found BAD BAD file\n");
-                	err = 0;
-                        goto close_pattern_file;
+	tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+	list_for_each_entry(pattern, &tmp_head->pattern_list ,pattern_list){
+        	if(strstr(buf,pattern->patrn)){
+			printk("BAD Pattern being written to file\n");
+                	//rr = 0;
+                        //goto close_pattern_file;
                 }
-        }*/
+        }
 
 
 	if (err >= 0) {
