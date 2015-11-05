@@ -35,7 +35,7 @@
 
 /* useful for tracking code reachability */
 #define UDBG printk(KERN_DEFAULT "DBG:%s:%s:%d\n", __FILE__, __func__, __LINE__)
-
+// Defination's for XATTRIBUTES
 /* operations vectors defined in specific files */
 extern const struct file_operations amfs_main_fops;
 extern const struct file_operations amfs_dir_fops;

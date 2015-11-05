@@ -5,6 +5,7 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <string.h>
 int main(int argc, char **argv){
 	errno = 0;
 	int c;
@@ -15,6 +16,10 @@ int main(int argc, char **argv){
 	//char* command = NULL;
 	char* file = NULL;
 	int code = -1;
+	int list_flag = 0;
+	char *pattern = NULL;
+	char delimeter = '\n'';
+//	char* buffer = NULL;
 	printf("Before while loop\n");
 	while((c = getopt(argc, argv, "la:r:"))!=-1){
 		switch(c){
@@ -25,9 +30,10 @@ int main(int argc, char **argv){
 					goto error;
 				}
 				flag = 1;
+				list_flag = 1;
 				code = AMFSCTL_READ_PATTERN; 
 				//command = "AMFSCTL_READ_PATTERN";	
-//				option = malloc(4096);
+				option = (char*)malloc(4096);
 				break;
 			case 'a':
 				if(flag){
@@ -82,6 +88,15 @@ int main(int argc, char **argv){
 		perror("Error: IOCTL");
 
 	}
+	if(list_flag){
+		pattern = strtok(option,delimeter);
+		while(pattern != NULL){
+			printf("%s\n",pattern);
+			pattern = strtok(NULL,option);
+		}
+		free(option);
+	}
+		
 	
 	error: return errno;
 		

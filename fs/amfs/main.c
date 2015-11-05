@@ -35,9 +35,27 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	char *token = NULL;
 	struct inode *inode;
 	char* pattern_db_pointer = NULL;
-	pattern_db_pointer = kzalloc(strlen(void_attachment->pattern_db_pointer)+1,__GFP_WAIT);
-	strncpy(pattern_db_pointer,void_attachment->pattern_db_pointer,strlen(void_attachment->pattern_db_pointer)+1);
-	mm_segment_t old_fs = get_fs();
+	char* pattern_db_file = NULL;
+        char delimeter = '=';
+	mm_segment_t old_fs;
+        //printk("%s argument",(char*)(raw_data));
+        //char *pattern_file = strsep(&pattern_db_file,&delimeter);
+        /*if(pattern_db_file==NULL){
+                err = -EINVAL;
+                goto out;
+        }*/
+
+	pattern_db_file = kzalloc(strlen((char*)void_attachment->pattern_db_pointer)+1,__GFP_WAIT);
+	strncpy(pattern_db_file,(char*)void_attachment->pattern_db_pointer,strlen((char*)void_attachment->pattern_db_pointer)+1);
+	pattern_db_pointer = strsep(&pattern_db_file,&delimeter);
+	if(pattern_db_file==NULL){
+		err = -EINVAL;
+		goto out;
+	}
+	pattern_db_pointer = (char*)kzalloc(strlen(pattern_db_file)+1,__GFP_WAIT);
+	strncpy(pattern_db_pointer,pattern_db_file,strlen(pattern_db_file)+1);
+	kfree(pattern_db_file);
+	old_fs = get_fs();
 	printk("Inside read super\n");
 	printk("File name %s\n",pattern_db_pointer);
 	pattern_db = filp_open(pattern_db_pointer,O_RDONLY,0);
@@ -195,9 +213,18 @@ struct dentry *amfs_mount(struct file_system_type *fs_type, int flags,
 //	char* buf;
 //	buf = kmalloc(PAGE_SIZE,__GFP_WAIT);
 //	void *lower_path_name = (void *) dev_name;
+	/*int err = 0;
+	char* pattern_db = (char*)raw_data;
+	char delimeter = '=';
 	printk("%s argument",(char*)(raw_data));
+	char *pattern_file = strsep(&pattern_db,&delimeter);
+	if(pattern_db==NULL){
+		err = -EINVAL;
+		goto error;
+	}*/
+	//printk("%s raw_data new ",(char*)raw_data);
 	struct sb_void_data *lower_path_name = kmalloc(sizeof(struct sb_void_data),__GFP_WAIT);
-	lower_path_name->dev_name = dev_name;
+	lower_path_name->dev_name = (char*)dev_name;
 	lower_path_name->pattern_db_pointer = (char*)raw_data;
 //	lower_path_name->patterns = NULL;
 	
@@ -205,6 +232,7 @@ struct dentry *amfs_mount(struct file_system_type *fs_type, int flags,
 	
 	return mount_nodev(fs_type, flags,(void *) lower_path_name,
 			   amfs_read_super);
+	//error: return err;
 }
 
 static struct file_system_type amfs_fs_type = {
