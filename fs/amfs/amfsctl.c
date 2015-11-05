@@ -93,7 +93,7 @@ int main(int argc, char **argv){
 		free(option);
 	}
 		
-	
+	close(fd);	
 	error: return errno;
 		
 }	

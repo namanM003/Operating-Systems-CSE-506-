@@ -18,9 +18,23 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 	int err;
 	struct file *lower_file;
 	struct dentry *dentry = file->f_path.dentry;
-
+	/*******************Variable to traverse list and search for pattern in a file ***************/
+	struct pattern *temp_head = NULL;
+	struct pattern *pattern = NULL;
+	/******************Variable declaration ends*****************************/
 	lower_file = amfs_lower_file(file);
 	err = vfs_read(lower_file, buf, count, ppos);
+	/*************code to search for a pattern and return appropriate code ******************/
+	temp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+	printk("In read\n");
+        list_for_each_entry(pattern, &temp_head->pattern_list , pattern_list){
+		printk("Buffer: %s, Pattern %s\n",buf,pattern->patrn);
+                if(strstr(buf,pattern->patrn)){
+                        printk("Pattern Found BAD BAD file\n");
+                        //err = 0;
+                        //goto close_pattern_file;
+                }
+        }
 	/* update our inode atime upon a successful lower read */
 	if (err >= 0)
 		fsstack_copy_attr_atime(dentry->d_inode,
@@ -40,6 +54,16 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
 	lower_file = amfs_lower_file(file);
 	err = vfs_write(lower_file, buf, count, ppos);
 	/* update our inode times+sizes upon a successful lower write */
+	/*tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+	list_for_each_entry(list_pat, &tmp_head->pattern_list ,i pattern_list){
+        	if(strstr(buf,tmp->patrn)){
+			printk("Pattern Found BAD BAD file\n");
+                	err = 0;
+                        goto close_pattern_file;
+                }
+        }*/
+
+
 	if (err >= 0) {
 		fsstack_copy_inode_size(dentry->d_inode,
 					file_inode(lower_file));
@@ -167,6 +191,7 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 					printk("Checking file name %s\n",AMFS_SB(file->f_inode->i_sb)->pattern_db);
 					//struct pattern *tmp;
 					//struct pattern *tmp_head;
+					err = 0;
 					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
 					list_ioctl_buffer = (char*)kzalloc(PAGE_SIZE,__GFP_WAIT);
 					list_for_each_entry(tmp, &tmp_head->pattern_list , pattern_list){
@@ -176,11 +201,13 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 						
 						
 					}
-					copy_to_user((char*)arg,list_ioctl_buffer,PAGE_SIZE);
+					if(copy_to_user((char*)arg,list_ioctl_buffer,PAGE_SIZE)){
+						err = -EFAULT;
+					}
 					kfree(list_ioctl_buffer);
 					
 					printk("In Read Pattern\n");
-					err = 0;
+				//	err = 0;
 					goto out;
 					
 		default:
