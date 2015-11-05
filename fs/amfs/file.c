@@ -132,7 +132,7 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 					break;
 		case AMFSCTL_REMOVE_PATTERN:
 					printk("In remove pattern\n");
-					pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db , O_WRONLY, 0);
+					pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db ,O_TRUNC | O_WRONLY, 0);
                                         tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
 					list_pat = NULL;					
 					list_for_each_safe(pos, q, &tmp_head->pattern_list){
@@ -157,6 +157,7 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
                                 	                vfs_write(pattern_db_file,&buffer,1,&pattern_db_file->f_pos);
                                         	        set_fs(old_fs);
                                         	}
+						//vfs_truncate(&pattern_db_file->f_path,pattern_db_file->f_pos);
 			
 					goto close_pattern_file;
 
@@ -166,8 +167,12 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 					//struct pattern *tmp;
 					//struct pattern *tmp_head;
 					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-					list_for_each_entry(tmp, &tmp_head->pattern_list , pattern_list)
+					
+					list_for_each_entry(tmp, &tmp_head->pattern_list , pattern_list){
 						printk("%s pattern ", tmp->patrn);
+						copy_to_user((char*)arg,tmp->patrn,strlen(tmp->patrn));
+						
+					}
 					
 					printk("In Read Pattern\n");
 					err = 0;
