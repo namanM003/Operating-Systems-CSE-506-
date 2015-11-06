@@ -21,12 +21,21 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 	/*******************Variable to traverse list and search for pattern in a file ***************/
 	struct pattern *temp_head = NULL;
 	struct pattern *pattern = NULL;
-	char* value = kmalloc(5,__GFP_WAIT);
+	char* value = kzalloc(5,__GFP_WAIT);
 	int flag = 0;
 	/******************Variable declaration ends*****************************/
+	if(value==NULL){
+		err = -ENOMEM;
+		goto out;
+	}
 	lower_file = amfs_lower_file(file);
 	//PUT CHECK LATER ON
-	printk("%d\n",amfs_getxattr(dentry, AMFS_XATTR_NAME , value,5));
+	if(amfs_getxattr(dentry, AMFS_XATTR_NAME , value,5)>0){
+		if(strcmp(value,AMFS_BADFILE)){
+			err = -EPERM;
+			goto freevalue;
+		}
+	}
 		
 	
 	err = vfs_read(lower_file, buf, count, ppos);
@@ -40,8 +49,8 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
                         //err = 0;
 			flag = 1;
 			if(!amfs_setxattr(dentry, AMFS_XATTR_NAME, AMFS_BADFILE,sizeof(AMFS_BADFILE),0)){
-				err = -EBADF;
-				goto out;
+				err = -EPERM;
+				goto freevalue;
 			}	
                         //goto close_pattern_file;
                 }
@@ -53,6 +62,8 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 	if (err >= 0)
 		fsstack_copy_attr_atime(dentry->d_inode,
 					file_inode(lower_file));
+freevalue:
+		kfree(value);
 out:
 		return err;
 }
@@ -121,138 +132,108 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lo
 	lower_file = amfs_lower_file(file);
 	/**********************************************CODE TO SWITCH AS PER IOCTL ROLE*********************************************/
 	switch(cmd){
-		case AMFSCTL_ADD_PATTERN: printk("In add pattern\n");
-					list_pat = NULL;
-					printk("Checking file name %s\n",AMFS_SB(file->f_inode->i_sb)->pattern_db);
-					pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db, O_WRONLY, 0);
-					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-					if(tmp_head == NULL){
-						printk("Tmp head is null\n");
+	case AMFSCTL_ADD_PATTERN: printk("In add pattern\n");
+				list_pat = NULL;
+				pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db, O_WRONLY | O_TRUNC, 0);
+				tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+				if(tmp_head == NULL){
+					printk("Tmp head is null\n");
+				}
+				if((char*)arg == NULL || strlen((char*)arg)>63){
+					err = -EINVAL;
+					goto out;
+				}
+				list_for_each_entry(list_pat, &tmp_head->pattern_list, pattern_list){
+					if(!strcmp(list_pat->patrn,(char*)arg)){
+						err = -1;
+						goto close_pattern_file;
 					}
-					//tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-                                        list_for_each_entry(list_pat, &tmp_head->pattern_list, pattern_list){
-						if(!strcmp(list_pat->patrn,(char*)arg)){
-							//flag = 1;
-							err = 0;
-							goto close_pattern_file;
-						}
-						counter = counter +1;
-                                                //printk("%s pattern ", tmp->patrn);
+					counter = counter +1;
+				}
+				
+				if(counter>64){
+					err = -EINVAL;	
+					goto out;
+				}
+				tmp = (struct pattern*)kzalloc(sizeof(struct pattern),__GFP_WAIT);
+				tmp->patrn = (char *)kzalloc(strlen((char *)arg)+1,__GFP_WAIT);
+				strcpy(tmp->patrn,(char *)arg);
+				list_add_tail(&tmp->pattern_list,&tmp_head->pattern_list);
+				old_fs = get_fs();
+				
+				list_for_each_entry(list_pat,&tmp_head->pattern_list , pattern_list){
+					set_fs(get_ds());
+					vfs_write(pattern_db_file,list_pat->patrn,strlen(list_pat->patrn),&pattern_db_file->f_pos);
+					vfs_write(pattern_db_file,&buffer,1,&pattern_db_file->f_pos);
+					set_fs(old_fs);
+				}
+				err = 0;	
+				goto close_pattern_file;
+				break;
+	case AMFSCTL_REMOVE_PATTERN:
+				pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db ,O_TRUNC | O_WRONLY, 0);
+				tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+				list_pat = NULL;					
+				list_for_each_safe(pos, q, &tmp_head->pattern_list){
+					list_pat = list_entry(pos,struct pattern,pattern_list);
+					if(!strcmp(list_pat->patrn,(char*)arg)){
+						flag = 1;
+						err = 0;
+						kfree(list_pat->patrn);
+						list_del(pos);
+						kfree(list_pat);
 					}
-					
-					printk("After getting linkedlist head\n");
-					/*list_for_each_entry(list_pat, &tmp_head->pattern_list,pattern_list){
-						printk("Counter is on\n");
-						counter = counter+1;
-					}*/
-					printk("After calcultaing number of strings\n");
-					if(counter>=64){
-						err = -EINVAL;	
-						goto out;
-					}
-					tmp = (struct pattern*)kzalloc(sizeof(struct pattern),__GFP_WAIT);
-					printk("After allocating memory for new pattern\n");
-					tmp->patrn = (char *)kzalloc(strlen((char *)arg)+1,__GFP_WAIT);
-					printk("%s string passed\n",(char*)arg);
-					strcpy(tmp->patrn,(char *)arg);
-					list_add_tail(&tmp->pattern_list,&tmp_head->pattern_list);
-//					buffer = (char*)kzalloc(64,__GFP_WAIT);
-					old_fs = get_fs();
-					
+				}
+				if(!flag){
+					err = -1;
+					goto close_pattern_file;
+				}
+				list_pat = NULL;
+				tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+				old_fs = get_fs();
+				
 					list_for_each_entry(list_pat,&tmp_head->pattern_list , pattern_list){
-						//printk("In List\n");
 						set_fs(get_ds());
 						vfs_write(pattern_db_file,list_pat->patrn,strlen(list_pat->patrn),&pattern_db_file->f_pos);
 						vfs_write(pattern_db_file,&buffer,1,&pattern_db_file->f_pos);
 						set_fs(old_fs);
 					}
-					err = 0;	
-					goto close_pattern_file;
-					break;
-		case AMFSCTL_REMOVE_PATTERN:
-					printk("In remove pattern\n");
-					pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db ,O_TRUNC | O_WRONLY, 0);
-                                        tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-					list_pat = NULL;					
-					list_for_each_safe(pos, q, &tmp_head->pattern_list){
-						list_pat = list_entry(pos,struct pattern,pattern_list);
-                                                if(!strcmp(list_pat->patrn,(char*)arg)){
-                                                        flag = 1;
-                                                        err = 0;
-                                                        list_del(pos);
-							kfree(list_pat);
-                                                }
-                                        //        counter = counter +1;
-                                                //printk("%s pattern ", tmp->patrn);
-                                        }
-					list_pat = NULL;
-					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-					old_fs = get_fs();
-					
-						list_for_each_entry(list_pat,&tmp_head->pattern_list , pattern_list){
-        	                                        //printk("In List\n");
-                	                                set_fs(get_ds());
-                        	                        vfs_write(pattern_db_file,list_pat->patrn,strlen(list_pat->patrn),&pattern_db_file->f_pos);
-                                	                vfs_write(pattern_db_file,&buffer,1,&pattern_db_file->f_pos);
-                                        	        set_fs(old_fs);
-                                        	}
-						//vfs_truncate(&pattern_db_file->f_path,pattern_db_file->f_pos);
-			
-					goto close_pattern_file;
+		
+				goto close_pattern_file;
 
 
-		case AMFSCTL_READ_PATTERN:
-					printk("Checking file name %s\n",AMFS_SB(file->f_inode->i_sb)->pattern_db);
-					//struct pattern *tmp;
-					//struct pattern *tmp_head;
-					err = 0;
-					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-					list_ioctl_buffer = (char*)kzalloc(PAGE_SIZE,__GFP_WAIT);
-					list_for_each_entry(tmp, &tmp_head->pattern_list , pattern_list){
-						printk("%s pattern ", tmp->patrn);
-						strcat(list_ioctl_buffer,tmp->patrn);
-						strcat(list_ioctl_buffer,"\n");
-						
-						
-					}
-					if(copy_to_user((char*)arg,list_ioctl_buffer,PAGE_SIZE)){
-						err = -EFAULT;
-					}
-					kfree(list_ioctl_buffer);
-					
-					printk("In Read Pattern\n");
-				//	err = 0;
-					goto out;
-					
-		default:
-			/* XXX: use vfs_ioctl if/when VFS exports it */
-			err = -ENOTTY;
-		        if (!lower_file || !lower_file->f_op)
-                		goto out;
-		        if (lower_file->f_op->unlocked_ioctl)
-		                err = lower_file->f_op->unlocked_ioctl(lower_file, cmd, arg);
-
-		        /* some ioctls can change inode attributes (EXT2_IOC_SETFLAGS) */
-		        if (!err)
-                		fsstack_copy_attr_all(file_inode(file),
-                                	      file_inode(lower_file));
+	case AMFSCTL_READ_PATTERN:
+				printk("Checking file name %s\n",AMFS_SB(file->f_inode->i_sb)->pattern_db);
+				err = 0;
+				tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+				list_ioctl_buffer = (char*)kzalloc(PAGE_SIZE,__GFP_WAIT);
+				list_for_each_entry(tmp, &tmp_head->pattern_list , pattern_list){
+					strcat(list_ioctl_buffer,tmp->patrn);
+					strcat(list_ioctl_buffer,"\n");
+				}
+				if(copy_to_user((char*)arg,list_ioctl_buffer,PAGE_SIZE)){
+					err = -EFAULT;
+				}
+				kfree(list_ioctl_buffer);
+				
+				printk("In Read Pattern\n");
+				goto out;
+				
+	default:
+		/* XXX: use vfs_ioctl if/when VFS exports it */
+		err = -ENOTTY;
+		if (!lower_file || !lower_file->f_op)
 			goto out;
+		if (lower_file->f_op->unlocked_ioctl)
+			err = lower_file->f_op->unlocked_ioctl(lower_file, cmd, arg);
+
+		/* some ioctls can change inode attributes (EXT2_IOC_SETFLAGS) */
+		if (!err)
+			fsstack_copy_attr_all(file_inode(file),
+					file_inode(lower_file));
+		goto out;
 	}	
 	/**********************************************IOCTL CODE ENDS HERE *******************************************************/
-	//printk("Testing ioctl in unlocked\n");
-	/* XXX: use vfs_ioctl if/when VFS exports it */
-/*	if (!lower_file || !lower_file->f_op)
-		goto out;
-	if (lower_file->f_op->unlocked_ioctl)
-		err = lower_file->f_op->unlocked_ioctl(lower_file, cmd, arg);
-*/
-	/* some ioctls can change inode attributes (EXT2_IOC_SETFLAGS) */
-/*	if (!err)
-		fsstack_copy_attr_all(file_inode(file),
-				      file_inode(lower_file));
-*/
-//free_add: kfree(tmp);
-//free_buffer: kfree(buffer);
 close_pattern_file: filp_close(pattern_db_file,NULL);
 out:
 	return err;
@@ -264,7 +245,6 @@ static long amfs_compat_ioctl(struct file *file, unsigned int cmd,
 {
 	long err = -ENOTTY;
 	struct file *lower_file;
-	printk("Testing ioctl in compat\n");
 	lower_file = amfs_lower_file(file);
 
 	/* XXX: use vfs_ioctl if/when VFS exports it */

@@ -92,14 +92,19 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 			counter = counter+1;
 			continue;
 		}
+		/*If there is a pattern whose length is more is 63 characters we
+		 * are not adding it to the list 
+		 */
+		if(strlen(token)>63){
+			counter = counter + strlen(token);
+			continue;
+		}
 		pat = (struct pattern*)kmalloc(sizeof(struct pattern),__GFP_WAIT);
 		pat->patrn = kmalloc(strlen(token)+1,__GFP_WAIT);
 		memset(pat->patrn,0,strlen(token)+1);
 		memcpy(pat->patrn,token,strlen(token));
-		printk("Pattern %s\n",pat->patrn);
 		list_add_tail(&pat->pattern_list,&(patterns->pattern_list));
 		counter = counter+strlen(token)+1;
-		printk("Value of counter %d\n",counter);
 	}
 	
 	
@@ -201,7 +206,6 @@ out_free:
 /*******************CLOSE PATTERN FILE**************************/
 freebuf: kfree(buffer);
 close_file: filp_close(pattern_db,NULL);
-/********************* LABELS DEFINED BY ME*************************/
 out:
 	return err;
 }

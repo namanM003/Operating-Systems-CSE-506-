@@ -19,8 +19,13 @@ int main(int argc, char **argv){
 	int list_flag = 0;
 	char *pattern = NULL;
 	char delimeter = '\n';
+	/* Operations
+	 * List: 0
+	 * Add: 1
+	 * Remove: 2
+	 */
+	int operation = -1;
 //	char* buffer = NULL;
-	printf("Before while loop\n");
 	while((c = getopt(argc, argv, "la:r:"))!=-1){
 		switch(c){
 			case 'l':
@@ -31,7 +36,8 @@ int main(int argc, char **argv){
 				}
 				flag = 1;
 				list_flag = 1;
-				code = AMFSCTL_READ_PATTERN; 
+				code = AMFSCTL_READ_PATTERN;
+				operation = 0;	
 				//command = "AMFSCTL_READ_PATTERN";	
 				option = (char*)malloc(4096);
 				break;
@@ -42,6 +48,7 @@ int main(int argc, char **argv){
 					goto error;
 				}
 				flag = 1;
+				operation = 1;
 				code = AMFSCTL_ADD_PATTERN;
 				option = optarg;
 			//	commnand = "AMFSCTL_ADD_PATTERN";
@@ -53,6 +60,7 @@ int main(int argc, char **argv){
 					goto error;
 				}
 				flag = 1;
+				operation = 2;
 				code = AMFSCTL_REMOVE_PATTERN;
 				option = optarg;
 			//	command = "AMFSCTL_REMOVE_PATTERN";
@@ -64,8 +72,6 @@ int main(int argc, char **argv){
 				break;
 		}
 	}
-	printf("After while loop\n");
-	printf("%s %s arguments\n",argv[optind], option);
 	if(code == -1){
 		errno = -EINVAL;
 		fprintf(stderr,"Missing flag\n");
@@ -85,8 +91,19 @@ int main(int argc, char **argv){
 		goto error;
 	}
 	if(ioctl(fd,code,option)==-1){
-		perror("Error: IOCTL");
-
+		switch(operation){
+		case 0:
+			printf("Failed to list patterns\n");
+			break;
+		case 1:
+			printf("Pattern exists. Duplicate not added to list\n");
+			break;
+		case 2:
+			printf("Pattern doesn't exist. Nothing done\n");
+			break;
+		default:
+			perror("ERROR:");
+		}
 	}
 	if(list_flag){
 		printf("%s",option);

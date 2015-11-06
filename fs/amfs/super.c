@@ -25,10 +25,8 @@ static void amfs_put_super(struct super_block *sb)
 	struct pattern *list_pat;
 	struct pattern *list_head;
 	struct list_head *pos,*q;
-	printk("Above spd\n");
 	spd = AMFS_SB(sb);
 	
-	printk("below spd\n");
 	if (!spd)
 		return;
 	list_head = AMFS_SB(sb)->pattern_list_head;
@@ -41,14 +39,10 @@ static void amfs_put_super(struct super_block *sb)
 		
 	}
 
-	printk("After if cond in amfs_put_super\n");
 	/* decrement lower super references */
 	s = amfs_lower_super(sb);
-	printk("After findinf amfs_lower_super\n");
 	amfs_set_lower_super(sb, NULL,NULL,NULL);
-	printk("Before atomic decrement\n");
 	atomic_dec(&s->s_active);
-	printk("After atomice decrement\n and setting spd kfree\n");
 	kfree(spd);
 	sb->s_fs_info = NULL;
 }
