@@ -21,8 +21,14 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 	/*******************Variable to traverse list and search for pattern in a file ***************/
 	struct pattern *temp_head = NULL;
 	struct pattern *pattern = NULL;
+	char* value = kmalloc(5,__GFP_WAIT);
+	int flag = 0;
 	/******************Variable declaration ends*****************************/
 	lower_file = amfs_lower_file(file);
+	//PUT CHECK LATER ON
+	printk("%d\n",amfs_getxattr(dentry, AMFS_XATTR_NAME , value,5));
+		
+	
 	err = vfs_read(lower_file, buf, count, ppos);
 	/*************code to search for a pattern and return appropriate code ******************/
 	temp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
@@ -32,22 +38,30 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
                 if(strstr(buf,pattern->patrn)){
                         printk("Pattern Found BAD BAD file\n");
                         //err = 0;
+			flag = 1;
+			if(!amfs_setxattr(dentry, AMFS_XATTR_NAME, AMFS_BADFILE,sizeof(AMFS_BADFILE),0)){
+				err = -EBADF;
+				goto out;
+			}	
                         //goto close_pattern_file;
                 }
         }
+	if(!flag){
+		amfs_setxattr(dentry,AMFS_XATTR_NAME,AMFS_GOODFILE,sizeof(AMFS_GOODFILE),0);
+	}
 	/* update our inode atime upon a successful lower read */
 	if (err >= 0)
 		fsstack_copy_attr_atime(dentry->d_inode,
 					file_inode(lower_file));
-
-	return err;
+out:
+		return err;
 }
 
 static ssize_t amfs_write(struct file *file, const char __user *buf,
 			    size_t count, loff_t *ppos)
 {
 	int err;
-
+	int flag=0;
 	struct file *lower_file;
 	struct dentry *dentry = file->f_path.dentry;
 	struct pattern *tmp_head = NULL;
@@ -89,8 +103,7 @@ static int amfs_readdir(struct file *file, struct dir_context *ctx)
 	return err;
 }
 
-static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
-				  unsigned long arg)
+static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long err = -ENOTTY;
 	struct file *lower_file;
@@ -111,13 +124,13 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 		case AMFSCTL_ADD_PATTERN: printk("In add pattern\n");
 					list_pat = NULL;
 					printk("Checking file name %s\n",AMFS_SB(file->f_inode->i_sb)->pattern_db);
-					pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db , O_WRONLY, 0);
+					pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db, O_WRONLY, 0);
 					tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
 					if(tmp_head == NULL){
 						printk("Tmp head is null\n");
 					}
 					//tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-                                        list_for_each_entry(list_pat, &tmp_head->pattern_list , pattern_list){
+                                        list_for_each_entry(list_pat, &tmp_head->pattern_list, pattern_list){
 						if(!strcmp(list_pat->patrn,(char*)arg)){
 							//flag = 1;
 							err = 0;

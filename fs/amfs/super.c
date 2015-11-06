@@ -22,11 +22,25 @@ static void amfs_put_super(struct super_block *sb)
 {
 	struct amfs_sb_info *spd;
 	struct super_block *s;
+	struct pattern *list_pat;
+	struct pattern *list_head;
+	struct list_head *pos,*q;
 	printk("Above spd\n");
 	spd = AMFS_SB(sb);
+	
 	printk("below spd\n");
 	if (!spd)
 		return;
+	list_head = AMFS_SB(sb)->pattern_list_head;
+	list_for_each_safe(pos, q, &list_head->pattern_list){
+		list_pat = list_entry(pos,struct pattern,pattern_list);
+		
+		kfree(list_pat->patrn);
+		list_del(pos);
+		kfree(list_pat);
+		
+	}
+
 	printk("After if cond in amfs_put_super\n");
 	/* decrement lower super references */
 	s = amfs_lower_super(sb);

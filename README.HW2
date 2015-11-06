@@ -1,1 +1,6 @@
 Empty placeholder for CSE-506 F'15 HW2 README file
+Constraints:
+	The PatternDB file should contain a maximum of 64 Patterns and each
+pattern string length can be maximum of 63 (excluding \0 character). Hence
+making a file size a maximum of 4KB
+

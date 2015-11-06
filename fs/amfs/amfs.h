@@ -27,6 +27,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/list.h>
+#include <linux/xattr.h>
 /* the file system name */
 #define AMFS_NAME "amfs"
 
@@ -36,11 +37,10 @@
 /* useful for tracking code reachability */
 #define UDBG printk(KERN_DEFAULT "DBG:%s:%s:%d\n", __FILE__, __func__, __LINE__)
 // Defination's for XATTRIBUTES
-/*
-#define AMFS_XATTR "user.bad"
-#define AMFS_BADFILE 1
-#define AMFS_GOODFILE 0
-*/
+
+#define AMFS_XATTR_NAME "user.bad"
+#define AMFS_BADFILE "bad"
+#define AMFS_GOODFILE "good"
 /* operations vectors defined in specific files */
 extern const struct file_operations amfs_main_fops;
 extern const struct file_operations amfs_dir_fops;
@@ -117,6 +117,11 @@ static inline struct amfs_inode_info *AMFS_I(const struct inode *inode)
 {
 	return container_of(inode, struct amfs_inode_info, vfs_inode);
 }
+
+/*************************************XATTR CODE*************************************/
+int amfs_setxattr(struct dentry *dentry, const char *name, const void *value,size_t size, int flags);
+ssize_t amfs_getxattr(struct dentry *dentry, const char *name, void *buffer,size_t size);
+/*************************************XATTR CODE ENDS HERE**************************/
 
 /* dentry to private data */
 #define AMFS_D(dent) ((struct amfs_dentry_info *)(dent)->d_fsdata)

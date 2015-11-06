@@ -448,7 +448,7 @@ out:
 	return err;
 }
 
-static int
+int
 amfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 		size_t size, int flags)
 {
@@ -463,14 +463,13 @@ amfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 		goto out;
 	}
 
-	err = lower_dentry->d_inode->i_op->setxattr(lower_dentry,
-						    name, value, size, flags);
+	err = vfs_setxattr(lower_dentry,name, value, size, flags);
 out:
 	amfs_put_lower_path(dentry, &lower_path);
 	return err;
 }
 
-static ssize_t
+ssize_t
 amfs_getxattr(struct dentry *dentry, const char *name, void *buffer,
 		size_t size)
 {
@@ -486,8 +485,7 @@ amfs_getxattr(struct dentry *dentry, const char *name, void *buffer,
 		goto out;
 	}
 
-	err = lower_dentry->d_inode->i_op->getxattr(lower_dentry,
-						    name, buffer, size);
+	err = vfs_getxattr(lower_dentry, name, buffer, size);
 out:
 	amfs_put_lower_path(dentry, &lower_path);
 	return err;

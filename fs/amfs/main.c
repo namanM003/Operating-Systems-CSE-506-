@@ -36,12 +36,14 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	char* pattern_db_pointer = NULL; //This field will contain the pattern file name
 	char* pattern_db_file = NULL;   //This variable just stores the string passed by user for parsing and geting file name.
         char delimeter = '=';
+	
 	mm_segment_t old_fs;
 	/***********************END OF VARIABLE DECLARATIONS***********************************************/
 	pattern_db_file = kzalloc(strlen((char*)void_attachment->pattern_db_pointer)+1,__GFP_WAIT);
 	strncpy(pattern_db_file,(char*)void_attachment->pattern_db_pointer,strlen((char*)void_attachment->pattern_db_pointer)+1);
 	pattern_db_pointer = strsep(&pattern_db_file,&delimeter);
-	if(pattern_db_file==NULL){
+	
+	if(pattern_db_file==NULL || strcmp(pattern_db_pointer,"pattdb")){
 		err = -EINVAL;
 		goto out;
 	}
