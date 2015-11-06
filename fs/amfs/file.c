@@ -31,7 +31,7 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 	lower_file = amfs_lower_file(file);
 	//PUT CHECK LATER ON
 	if(amfs_getxattr(dentry, AMFS_XATTR_NAME , value,5)>0){
-		if(strcmp(value,AMFS_BADFILE)){
+		if(!strncmp(value,AMFS_BADFILE,3)){
 			err = -EPERM;
 			goto freevalue;
 		}
@@ -41,12 +41,9 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 	err = vfs_read(lower_file, buf, count, ppos);
 	/*************code to search for a pattern and return appropriate code ******************/
 	temp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-	printk("In read\n");
         list_for_each_entry(pattern, &temp_head->pattern_list , pattern_list){
 		printk("Buffer: %s, Pattern %s\n",buf,pattern->patrn);
                 if(strstr(buf,pattern->patrn)){
-                        printk("Pattern Found BAD BAD file\n");
-                        //err = 0;
 			flag = 1;
 			if(!amfs_setxattr(dentry, AMFS_XATTR_NAME, AMFS_BADFILE,sizeof(AMFS_BADFILE),0)){
 				err = -EPERM;
@@ -77,17 +74,43 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
 	struct dentry *dentry = file->f_path.dentry;
 	struct pattern *tmp_head = NULL;
 	struct pattern *pattern = NULL;
+	char* value = NULL;
+	value = kzalloc(5,__GFP_WAIT);
+	if(value==NULL){
+		err = -ENOMEM;
+		goto out;
+	}
 	lower_file = amfs_lower_file(file);
+	if(amfs_getxattr(dentry, AMFS_XATTR_NAME , value, 5) > 0){
+                 if(!strncmp(value,AMFS_BADFILE,3)){
+                         err = -EPERM;
+                         goto freevalue;
+                 }
+		
+        }
+	else if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5) != -ENODATA){
+			err = amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5);
+			goto freevalue;
+	}
+
+	/*
+	 * Approach: Here I check the buffer which was about to be written if it
+	 * is containing bad pattern then I took the approach of neither writing
+	 * the content of buffer not setting Extra Attribute for bad file
+	 */
+	tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+        list_for_each_entry(pattern, &tmp_head->pattern_list ,pattern_list){
+		if(strstr(buf,pattern->patrn)){
+			err = -EPERM;
+                        goto freevalue;
+                }
+		 /* In amfs_write we will not set a file and good if there was no
+		  * harmul pattern found during write because we haven't read the
+		  * complete file
+		  */
+	}
 	err = vfs_write(lower_file, buf, count, ppos);
 	/* update our inode times+sizes upon a successful lower write */
-	tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
-	list_for_each_entry(pattern, &tmp_head->pattern_list ,pattern_list){
-        	if(strstr(buf,pattern->patrn)){
-			printk("BAD Pattern being written to file\n");
-                	//rr = 0;
-                        //goto close_pattern_file;
-                }
-        }
 
 
 	if (err >= 0) {
@@ -96,7 +119,8 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
 		fsstack_copy_attr_times(dentry->d_inode,
 					file_inode(lower_file));
 	}
-
+freevalue: kfree(value);
+out:
 	return err;
 }
 

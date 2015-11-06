@@ -4,3 +4,8 @@ Constraints:
 pattern string length can be maximum of 63 (excluding \0 character). Hence
 making a file size a maximum of 4KB
 
+Design Decision:
+	1. ) During amfs_write if I see a bad pattern in buffer I dont write
+data to the file nor do I set the Extra Attribute for the file because the bad
+pattern wasn't return.
+
