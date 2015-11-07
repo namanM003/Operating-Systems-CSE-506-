@@ -33,8 +33,8 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	int counter = 0;
 	char *token = NULL;
 	struct inode *inode;
-	char* pattern_db_pointer = NULL; //This field will contain the pattern file name
-	char* pattern_db_file = NULL;   //This variable just stores the string passed by user for parsing and geting file name.
+	char* pattern_db_pointer = NULL; //Variable to store pattern file name
+	char* pattern_db_file = NULL;   //Used to parse Pattern DB file
         char delimeter = '=';
 	
 	mm_segment_t old_fs;

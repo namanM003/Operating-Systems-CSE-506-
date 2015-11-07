@@ -67,14 +67,20 @@ int main(int argc, char **argv){
 				break;
 			case '?':
 				errno = -EINVAL;
-				code = -1;
+				code = 4;
 				fprintf(stderr,"Invalid argument passed\n");
+				printf("Usage ./amfsctl flag parameter mount point\n");
+				printf("Flags\n");
+				printf("-a to add pattern \n");
+				printf("-r to remove pattern\n");
+				printf("-l to list pattern\n");
 				break;
 		}
 	}
 	if(code == -1){
 		errno = -EINVAL;
-		fprintf(stderr,"Missing flag\n");
+		fprintf(stderr,"Missing flags\n");
+		printf("Usage: ./amfsctl flag option mount point\n");
 		goto error;
 	}
 	if(optind == argc){

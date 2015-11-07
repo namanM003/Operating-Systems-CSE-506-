@@ -242,9 +242,31 @@ static int amfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	struct dentry *lower_new_dir_dentry = NULL;
 	struct dentry *trap = NULL;
 	struct path lower_old_path, lower_new_path;
-
+	/*******Variable which will help in checking XATTR***************/
+	char* value = NULL;
+	value = kzalloc(5,__GFP_WAIT);
+	if(value==NULL){
+		err = -ENOMEM;
+		goto exitcode;
+	}
+	if(S_ISREG(old_dentry->d_inode->i_mode) && 
+			amfs_getxattr(old_dentry, 
+				AMFS_XATTR_NAME , value,5) > 0){
+		if(!strncmp(value,AMFS_BADFILE,3)){
+			err = -EPERM;
+			goto freevalue;
+		}
+	}
+	else if(S_ISREG(old_dentry->d_inode->i_mode) && 
+			amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5) 
+			!= -ENODATA){
+		err = amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5);
+		goto freevalue;
+	}
+	/****************************************************************/
 	amfs_get_lower_path(old_dentry, &lower_old_path);
 	amfs_get_lower_path(new_dentry, &lower_new_path);
+	
 	lower_old_dentry = lower_old_path.dentry;
 	lower_new_dentry = lower_new_path.dentry;
 	lower_old_dir_dentry = dget_parent(lower_old_dentry);
@@ -283,7 +305,10 @@ out:
 	dput(lower_new_dir_dentry);
 	amfs_put_lower_path(old_dentry, &lower_old_path);
 	amfs_put_lower_path(new_dentry, &lower_new_path);
-	return err;
+freevalue: 
+	kfree(value);
+exitcode:
+      	return err;
 }
 
 static int amfs_readlink(struct dentry *dentry, char __user *buf, int bufsiz)

@@ -36,7 +36,11 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 			goto freevalue;
 		}
 	}
-		
+	else if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5) != -ENODATA){
+			err = amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5);
+			goto freevalue;
+	}
+	
 	
 	err = vfs_read(lower_file, buf, count, ppos);
 	/*************code to search for a pattern and return appropriate code ******************/
@@ -69,7 +73,7 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
 			    size_t count, loff_t *ppos)
 {
 	int err;
-	int flag=0;
+	//int flag=0;
 	struct file *lower_file;
 	struct dentry *dentry = file->f_path.dentry;
 	struct pattern *tmp_head = NULL;
@@ -102,6 +106,7 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
         list_for_each_entry(pattern, &tmp_head->pattern_list ,pattern_list){
 		if(strstr(buf,pattern->patrn)){
 			err = -EPERM;
+			file->f_inode->i_flags |= S_IMMUTABLE;
                         goto freevalue;
                 }
 		 /* In amfs_write we will not set a file and good if there was no
@@ -158,8 +163,10 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lo
 	switch(cmd){
 	case AMFSCTL_ADD_PATTERN: printk("In add pattern\n");
 				list_pat = NULL;
-				pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db, O_WRONLY | O_TRUNC, 0);
-				tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+				pattern_db_file = 
+					filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db, O_WRONLY | O_TRUNC, 0);
+				tmp_head = 
+					AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
 				if(tmp_head == NULL){
 					printk("Tmp head is null\n");
 				}
@@ -167,7 +174,8 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lo
 					err = -EINVAL;
 					goto out;
 				}
-				list_for_each_entry(list_pat, &tmp_head->pattern_list, pattern_list){
+				list_for_each_entry(list_pat, 
+						&tmp_head->pattern_list, pattern_list){
 					if(!strcmp(list_pat->patrn,(char*)arg)){
 						err = -1;
 						goto close_pattern_file;
@@ -195,7 +203,9 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lo
 				goto close_pattern_file;
 				break;
 	case AMFSCTL_REMOVE_PATTERN:
-				pattern_db_file = filp_open(AMFS_SB(file->f_inode->i_sb)->pattern_db ,O_TRUNC | O_WRONLY, 0);
+				pattern_db_file = 
+					filp_open(AMFS_SB(file->f_inode->i_sb)
+							->pattern_db ,O_TRUNC | O_WRONLY, 0);
 				tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
 				list_pat = NULL;					
 				list_for_each_safe(pos, q, &tmp_head->pattern_list){
@@ -344,6 +354,8 @@ static int amfs_open(struct inode *inode, struct file *file)
 	int err = 0;
 	struct file *lower_file = NULL;
 	struct path lower_path;
+	//char *value = NULL;
+
 
 	/* don't open unhashed/deleted files */
 	if (d_unhashed(file->f_path.dentry)) {
