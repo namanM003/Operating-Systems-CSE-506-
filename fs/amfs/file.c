@@ -354,14 +354,50 @@ static int amfs_open(struct inode *inode, struct file *file)
 	int err = 0;
 	struct file *lower_file = NULL;
 	struct path lower_path;
-	//char *value = NULL;
-
+	/**************XATTR in OPEN***************/
+	char *value = NULL;
+	/*value = kzalloc(5,__GFP_WAIT);
+	if(value==NULL){
+		err = -ENOMEM;
+		goto out_err;
+	}
+	if(amfs_getxattr(old_dentry, AMFS_XATTR_NAME , value,5) > 0){
+		if(!strncmp(value,AMFS_BADFILE,3)){
+			err = -EPERM;
+			goto freevalue;
+		}
+	}
+	else if(amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5)•
+					!= -ENODATA){
+		err = amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5);
+		goto freevalue;
+	}*/
+	/****************XATTR ENDS*****************/
 
 	/* don't open unhashed/deleted files */
 	if (d_unhashed(file->f_path.dentry)) {
 		err = -ENOENT;
 		goto out_err;
 	}
+
+	/***************XATTR after checking file exists or not******/
+	value = kzalloc(5,__GFP_WAIT);
+	if(value==NULL){
+		err = -ENOMEM;
+		goto out_err;
+	}
+	if(amfs_getxattr(file->f_path.dentry, AMFS_XATTR_NAME , value,5) > 0){
+		if(!strncmp(value,AMFS_BADFILE,3)){
+			err = -EPERM;
+			goto freevalue;
+		}
+	}
+	else if(amfs_getxattr(file->f_path.dentry, AMFS_XATTR_NAME, value, 5) != -ENODATA){
+		err = amfs_getxattr(file->f_path.dentry, AMFS_XATTR_NAME, value, 5);
+		goto freevalue;
+	}
+
+	/***********************************************************/
 
 	file->private_data =
 		kzalloc(sizeof(struct amfs_file_info), GFP_KERNEL);
@@ -389,6 +425,8 @@ static int amfs_open(struct inode *inode, struct file *file)
 		kfree(AMFS_F(file));
 	else
 		fsstack_copy_attr_all(inode, amfs_lower_inode(inode));
+freevalue:
+	kfree(value);
 out_err:
 	return err;
 }
