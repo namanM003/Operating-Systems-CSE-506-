@@ -18,12 +18,12 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 	int err;
 	struct file *lower_file;
 	struct dentry *dentry = file->f_path.dentry;
-	/*******************Variable to traverse list and search for pattern in a file ***************/
+	/*****Variable to traverse list and search for pattern in a file ***/
 	struct pattern *temp_head = NULL;
 	struct pattern *pattern = NULL;
 	char *value = kzalloc(5, __GFP_WAIT);
 	int flag = 0;
-	/******************Variable declaration ends*****************************/
+	/************Variable declaration ends*********************/
 	if (file->f_inode->i_ino == AMFS_SB(file->f_inode->i_sb)->inode_no) {
 		err = -EPERM;
 		goto out;
@@ -44,13 +44,13 @@ static ssize_t amfs_read(struct file *file, char __user *buf,
 			goto freevalue;
 	}
 	err = vfs_read(lower_file, buf, count, ppos);
-	printk("AMFS_SB Inode value %lu\n", AMFS_SB(file->f_inode->i_sb)->inode_no);
 	/***code to search for a pattern and return appropriate code ********/
 	temp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
 	list_for_each_entry(pattern, &temp_head->pattern_list, pattern_list) {
 		if (strstr(buf, pattern->patrn)) {
 			flag = 1;
-			if (!amfs_setxattr(dentry, AMFS_XATTR_NAME, AMFS_BADFILE,
+			if (!amfs_setxattr(dentry, AMFS_XATTR_NAME,
+						AMFS_BADFILE,
 						sizeof(AMFS_BADFILE), 0)) {
 				err = -EPERM;
 				goto freevalue;
@@ -80,6 +80,7 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
 	struct pattern *tmp_head = NULL;
 	struct pattern *pattern = NULL;
 	char *value = NULL;
+
 	if (file->f_inode->i_ino == AMFS_SB(file->f_inode->i_sb)->inode_no) {
 		err = -EPERM;
 		goto out;
@@ -136,6 +137,7 @@ static int amfs_readdir(struct file *file, struct dir_context *ctx)
 	int err;
 	struct file *lower_file = NULL;
 	struct dentry *dentry = file->f_path.dentry;
+
 	lower_file = amfs_lower_file(file);
 	err = iterate_dir(lower_file, ctx);
 	file->f_pos = lower_file->f_pos;
@@ -157,6 +159,7 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 	char *list_ioctl_buffer = NULL;
 	int flag = 0;
 	struct list_head *pos = NULL, *q = NULL; /*To delete a node safely*/
+
 	lower_file = amfs_lower_file(file);
 	/*************CODE TO SWITCH AS PER IOCTL ROLE**********************/
 	switch (cmd) {
@@ -192,7 +195,8 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 				err = 0;
 				goto out;
 	case AMFSCTL_REMOVE_PATTERN:
-				tmp_head = AMFS_SB(file->f_inode->i_sb)->pattern_list_head;
+				tmp_head = AMFS_SB(file->f_inode->i_sb)
+							->pattern_list_head;
 				list_pat = NULL;
 				list_for_each_safe(pos, q,
 						&tmp_head->pattern_list){
@@ -215,8 +219,11 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 				err = 0;
 				tmp_head = AMFS_SB(file->f_inode->i_sb)
 					->pattern_list_head;
-				list_ioctl_buffer = (char *)kzalloc(PAGE_SIZE, __GFP_WAIT);
-				list_for_each_entry(tmp, &tmp_head->pattern_list, pattern_list) {
+				list_ioctl_buffer = (char *)kzalloc(PAGE_SIZE,
+								__GFP_WAIT);
+				list_for_each_entry(tmp,
+						&tmp_head->pattern_list,
+						pattern_list) {
 					strcat(list_ioctl_buffer, tmp->patrn);
 					strcat(list_ioctl_buffer, "\n");
 				}
@@ -233,9 +240,10 @@ static long amfs_unlocked_ioctl(struct file *file, unsigned int cmd,
 		if (!lower_file || !lower_file->f_op)
 			goto out;
 		if (lower_file->f_op->unlocked_ioctl)
-			err = lower_file->f_op->unlocked_ioctl(lower_file, cmd, arg);
+			err = lower_file->f_op->unlocked_ioctl(lower_file, cmd,
+									arg);
 
-		/* some ioctls can change inode attributes (EXT2_IOC_SETFLAGS) */
+		/* some ioctls can change inode attributes (EXT2_IOC_SETFLAGS)*/
 		if (!err)
 			fsstack_copy_attr_all(file_inode(file),
 					file_inode(lower_file));
@@ -255,7 +263,6 @@ static long amfs_compat_ioctl(struct file *file, unsigned int cmd,
 	long err = -ENOTTY;
 	struct file *lower_file;
 	lower_file = amfs_lower_file(file);
-
 	/* XXX: use vfs_ioctl if/when VFS exports it */
 	if (!lower_file || !lower_file->f_op)
 		goto out;
@@ -355,7 +362,8 @@ static int amfs_open(struct inode *inode, struct file *file)
 		}
 	} else if (amfs_getxattr(file->f_path.dentry, AMFS_XATTR_NAME, value, 5)
 		!= -ENODATA) {
-		err = amfs_getxattr(file->f_path.dentry, AMFS_XATTR_NAME, value, 5);
+		err = amfs_getxattr(file->f_path.dentry, AMFS_XATTR_NAME,
+								value, 5);
 		goto freevalue;
 	}
 

@@ -49,6 +49,7 @@ static int amfs_link(struct dentry *old_dentry, struct inode *dir,
 	int err;
 	struct path lower_old_path, lower_new_path;
 	char *value = NULL;
+
 	if (old_dentry->d_inode->i_ino ==
 			AMFS_SB(old_dentry->d_sb)->inode_no) {
 		err = -EPERM;
@@ -109,7 +110,7 @@ static int amfs_unlink(struct inode *dir, struct dentry *dentry)
 	struct inode *lower_dir_inode = amfs_lower_inode(dir);
 	struct dentry *lower_dir_dentry;
 	struct path lower_path;
-	/*******************Check if trying to delete pattern file******************/
+	/*************Check if trying to delete pattern file**************/
 	if (dentry->d_inode->i_ino == AMFS_SB(dentry->d_sb)->inode_no) {
 		err = -EPERM;
 		goto out_err;
@@ -295,8 +296,9 @@ static int amfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	struct path lower_old_path, lower_new_path;
 	/*******Variable which will help in checking XATTR***************/
 	char *value = NULL;
+
 	if (old_dentry->d_inode->i_ino ==
-		       	AMFS_SB(old_dentry->d_sb)->inode_no) {
+				AMFS_SB(old_dentry->d_sb)->inode_no) {
 		err = -EPERM;
 		goto exitcode;
 	}

@@ -64,18 +64,18 @@ extern struct inode *amfs_iget(struct super_block *sb,
 				 struct inode *lower_inode);
 extern int amfs_interpose(struct dentry *dentry, struct super_block *sb,
 			    struct path *lower_path);
-/**************************************************************** STRUCT TO STORE FILE POINTER of PATTERN DB and PATTERNS IN LINKED LIST***************************/
-struct sb_void_data{
+/****STRUCT TO STORE FILE POINTER of PATTERN DB and PATTERNS IN LINKED LIST***/
+struct sb_void_data {
 	char *dev_name;
 	char *pattern_db_pointer;
 };
 
-struct pattern{
+struct pattern {
 	struct list_head pattern_list;
 	char *patrn;
 };
 
-/*********************************************STRUCT ENDS HERE***************************************/
+/****************STRUCT ENDS HERE********************/
 
 
 
@@ -164,7 +164,10 @@ static inline struct super_block *amfs_lower_super(
 }
 
 static inline void amfs_set_lower_super(struct super_block *sb,
-					struct super_block *val, char *pattern_db, struct pattern *ptrn, unsigned long i_no)
+					struct super_block *val,
+					char *pattern_db,
+					struct pattern *ptrn,
+					unsigned long i_no)
 {
 	AMFS_SB(sb)->lower_sb = val;
 	AMFS_SB(sb)->pattern_db = pattern_db;
@@ -213,6 +216,7 @@ static inline void amfs_reset_lower_path(const struct dentry *dent)
 static inline void amfs_put_reset_lower_path(const struct dentry *dent)
 {
 	struct path lower_path;
+
 	spin_lock(&AMFS_D(dent)->lock);
 	pathcpy(&lower_path, &AMFS_D(dent)->lower_path);
 	AMFS_D(dent)->lower_path.dentry = NULL;
@@ -226,6 +230,7 @@ static inline void amfs_put_reset_lower_path(const struct dentry *dent)
 static inline struct dentry *lock_parent(struct dentry *dentry)
 {
 	struct dentry *dir = dget_parent(dentry);
+
 	mutex_lock_nested(&dir->d_inode->i_mutex, I_MUTEX_PARENT);
 	return dir;
 }

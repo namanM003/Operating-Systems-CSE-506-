@@ -29,6 +29,7 @@ static void amfs_put_super(struct super_block *sb)
 	struct file *pattern_file = NULL;
 	char delimeter = '\n';
 	mm_segment_t old_fs;
+
 	pattern_file_name = kzalloc(strlen(AMFS_SB(sb)->pattern_db)+1,
 					__GFP_WAIT);
 	strcpy(pattern_file_name, AMFS_SB(sb)->pattern_db);
@@ -48,11 +49,11 @@ static void amfs_put_super(struct super_block *sb)
 	/*******Copy Pattern db back to file ******/
 	old_fs = get_fs();
 	pattern_file = filp_open(pattern_file_name, O_WRONLY | O_TRUNC, 0);
-	/* If pattern file is deleted by user then just empty the list 
+	/* If pattern file is deleted by user then just empty the list
 	 * but dont create a new pattern file and write to it
 	 */
 	if (IS_ERR(pattern_file) || pattern_file == NULL) {
-		list_for_each_safe(pos, q, &list_head->pattern_list){
+		list_for_each_safe(pos, q, &list_head->pattern_list) {
 			list_pat = list_entry(pos, struct pattern,
 					pattern_list);
 			kfree(list_pat->patrn);
@@ -64,7 +65,8 @@ static void amfs_put_super(struct super_block *sb)
 	list_for_each_safe(pos, q, &list_head->pattern_list) {
 		list_pat = list_entry(pos, struct pattern, pattern_list);
 		set_fs(get_ds());
-		vfs_write(pattern_file, list_pat->patrn, strlen(list_pat->patrn), &pattern_file->f_pos);
+		vfs_write(pattern_file, list_pat->patrn,
+				strlen(list_pat->patrn), &pattern_file->f_pos);
 		vfs_write(pattern_file, &delimeter, 1, &pattern_file->f_pos);
 		set_fs(old_fs);
 		kfree(list_pat->patrn);

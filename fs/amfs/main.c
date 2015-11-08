@@ -57,7 +57,6 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	old_fs = get_fs();
 	pattern_db = filp_open(pattern_db_pointer, O_RDONLY, 0);
 	if (IS_ERR(pattern_db) || pattern_db == NULL) {
-		printk("Input file doesn't exist\n");
 		err = -ENOENT;
 		kfree(pattern_db_pointer);
 		goto out;
