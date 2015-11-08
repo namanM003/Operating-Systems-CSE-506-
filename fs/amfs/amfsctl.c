@@ -7,7 +7,8 @@
 #include <errno.h>
 #include <string.h>
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
 	errno = 0;
 	int c;
 	int flag = 0;
@@ -22,7 +23,9 @@ int main(int argc, char **argv) {
 	 * Add: 1
 	 * Remove: 2
 	 */
+	int fd = -1;
 	int operation = -1;
+
 	while ((c = getopt(argc, argv, "la:r:")) != -1) {
 		switch (c) {
 		case 'l':
@@ -75,7 +78,7 @@ int main(int argc, char **argv) {
 			printf("Usage ./amfsctl flag parameter ");
 			printf("mount point\n");
 			printf("Flags\n");
-			printf("-a to add pattern \n");
+			printf("-a to add pattern\n");
 			printf("-r to remove pattern\n");
 			printf("-l to list pattern\n");
 			goto error;
@@ -93,7 +96,7 @@ int main(int argc, char **argv) {
 		goto error;
 	}
 	file = argv[optind];
-	int fd = open(file, O_RDONLY);
+	fd = open(file, O_RDONLY);
 	if (fd <= 0) {
 		fprintf(stderr, "Incorrect device name\n");
 		errno = -EINVAL;
@@ -112,6 +115,20 @@ int main(int argc, char **argv) {
 			break;
 		default:
 			perror("ERROR:");
+		}
+	} else {
+		switch (operation) {
+		case 0:
+			printf("Patterns in the list are\n");
+			break;
+		case 1:
+			printf("Pattern successfully added to list\n");
+			break;
+		case 2:
+			printf("Pattern successfully removed from list\n");
+			break;
+		default:
+			break;
 		}
 	}
 	if (list_flag) {
