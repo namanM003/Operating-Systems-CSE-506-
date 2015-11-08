@@ -22,98 +22,88 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	int err = 0;
 	struct super_block *lower_sb;
 	struct path lower_path;
-	
-	/******************TYPE CAST VOID POINTER BACK TO STRUCT sb_void_data**********************************/
-	struct sb_void_data *void_attachment = (struct sb_void_data*)raw_data;
+	struct sb_void_data *void_attachment = (struct sb_void_data *)raw_data;
 	struct pattern *pat = NULL;
 	struct pattern *patterns;
 	char *buffer;
-	struct file *pattern_db = NULL; //This file will store the file pointer.
+	struct file *pattern_db = NULL;
 	int bytes_read = 0;
 	int counter = 0;
 	char *token = NULL;
 	struct inode *inode;
-	char* pattern_db_pointer = NULL; //Variable to store pattern file name
-	char* pattern_db_file = NULL;   //Used to parse Pattern DB file
-        char delimeter = '=';
-	
+	char *pattern_db_pointer = NULL; /*Variable store's pattern file name*/
+	char *pattern_db_file = NULL;   /*Used to parse Pattern DB file*/
+	char delimeter = '=';
 	mm_segment_t old_fs;
-	/***********************END OF VARIABLE DECLARATIONS***********************************************/
-	pattern_db_file = kzalloc(strlen((char*)void_attachment->pattern_db_pointer)+1,__GFP_WAIT);
-	strncpy(pattern_db_file,(char*)void_attachment->pattern_db_pointer,strlen((char*)void_attachment->pattern_db_pointer)+1);
-	pattern_db_pointer = strsep(&pattern_db_file,&delimeter);
-	
-	if(pattern_db_file==NULL || strcmp(pattern_db_pointer,"pattdb")){
+	/***********************END OF VARIABLE DECLARATIONS******************/
+	if ((char *)void_attachment->pattern_db_pointer == NULL) {
 		err = -EINVAL;
 		goto out;
 	}
-	pattern_db_pointer = (char*)kzalloc(strlen(pattern_db_file)+1,__GFP_WAIT);
-	strncpy(pattern_db_pointer,pattern_db_file,strlen(pattern_db_file)+1);
+	pattern_db_file = kzalloc(strlen((char *)void_attachment->
+				pattern_db_pointer)+1, __GFP_WAIT);
+	strncpy(pattern_db_file, (char *)void_attachment->
+		pattern_db_pointer,
+		strlen((char *)void_attachment->pattern_db_pointer)+1);
+	pattern_db_pointer = strsep(&pattern_db_file, &delimeter);
+	if (pattern_db_file == NULL || strcmp(pattern_db_pointer, "pattdb")) {
+		err = -EINVAL;
+		goto out;
+	}
+	pattern_db_pointer = (char *)kzalloc(strlen(pattern_db_file)+1,
+			__GFP_WAIT);
+	strncpy(pattern_db_pointer, pattern_db_file, strlen(pattern_db_file)+1);
 	kfree(pattern_db_file);
 	old_fs = get_fs();
-	printk("File name %s\n",pattern_db_pointer);
-	pattern_db = filp_open(pattern_db_pointer,O_RDONLY,0);
-	
-	if(IS_ERR(pattern_db) || pattern_db==NULL){
-                printk("Input file doesn't exist\n");
-                err = -EFAULT;
+	pattern_db = filp_open(pattern_db_pointer, O_RDONLY, 0);
+	if (IS_ERR(pattern_db) || pattern_db == NULL) {
+		printk("Input file doesn't exist\n");
+		err = -EFAULT;
 		kfree(pattern_db_pointer);
-                goto out;
-        }
-        if(!S_ISREG(pattern_db->f_inode->i_mode)){
-                err = -EINVAL;
-		//kfree(pattern_db_pointer);
-                goto close_file;
-        }
-
-	
-	buffer = kmalloc(PAGE_SIZE,__GFP_WAIT);
-
-	if(buffer==NULL){
-		err = -ENOMEM;
-		printk("Problem in buffer\n");
+		goto out;
+	}
+	if (!S_ISREG(pattern_db->f_inode->i_mode)) {
+		err = -EINVAL;
 		goto close_file;
 	}
-	memset(buffer,0,PAGE_SIZE);
+	buffer = kmalloc(PAGE_SIZE, __GFP_WAIT);
+	if (buffer == NULL) {
+		err = -ENOMEM;
+		goto close_file;
+	}
+	memset(buffer, 0, PAGE_SIZE);
 	set_fs(get_ds());
-	if((bytes_read = vfs_read(pattern_db,buffer,PAGE_SIZE,&pattern_db->f_pos)) < 0){
+	bytes_read = vfs_read(pattern_db, buffer, PAGE_SIZE, &pattern_db->f_pos);
+	if (bytes_read < 0) {
 		err = -EFAULT;
 		set_fs(old_fs);
-		printk("Problem with file reading\n");
 		goto freebuf;
 	}
 	set_fs(old_fs);
-	printk("After reading file\n");
-	patterns = kmalloc(sizeof(struct pattern),__GFP_WAIT);
+	patterns = kmalloc(sizeof(struct pattern),
+			__GFP_WAIT);
 	INIT_LIST_HEAD(&patterns->pattern_list);
-	printk("Init head done\n");
-	while(((token = strsep(&buffer,"\n"))!=NULL) && counter <= bytes_read){
-		if(strlen(token)==0){
+	while (((token = strsep(&buffer, "\n")) != NULL) &&
+			counter <= bytes_read){
+		if (strlen(token) == 0) {
 			counter = counter+1;
 			continue;
 		}
-		/*If there is a pattern whose length is more is 63 characters we
-		 * are not adding it to the list 
+		/*If there is a pattern whose length is more is 63 characters
+		 *we  are not adding it to the list
 		 */
-		if(strlen(token)>63){
+		if (strlen(token) > 63) {
 			counter = counter + strlen(token);
 			continue;
 		}
-		pat = (struct pattern*)kmalloc(sizeof(struct pattern),__GFP_WAIT);
-		pat->patrn = kmalloc(strlen(token)+1,__GFP_WAIT);
-		memset(pat->patrn,0,strlen(token)+1);
-		memcpy(pat->patrn,token,strlen(token));
-		list_add_tail(&pat->pattern_list,&(patterns->pattern_list));
+		pat = (struct pattern *)kmalloc(sizeof(struct pattern),
+				__GFP_WAIT);
+		pat->patrn = kmalloc(strlen(token)+1, __GFP_WAIT);
+		memset(pat->patrn, 0, strlen(token)+1);
+		memcpy(pat->patrn, token, strlen(token));
+		list_add_tail(&pat->pattern_list, &(patterns->pattern_list));
 		counter = counter+strlen(token)+1;
 	}
-	
-	
-		
-	
-/******************************************Pattern fillinf *****************************************************/	
-	//char *dev_name = (char *) raw_data;
-	//printk("Raw data %s\n",(char*)raw_data);
-//	struct inode *inode;
 
 	if (!void_attachment->dev_name) {
 		printk(KERN_ERR
@@ -142,7 +132,7 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	/* set the lower superblock field of upper superblock */
 	lower_sb = lower_path.dentry->d_sb;
 	atomic_inc(&lower_sb->s_active);
-	amfs_set_lower_super(sb, lower_sb,pattern_db_pointer,patterns);
+	amfs_set_lower_super(sb, lower_sb, pattern_db_pointer, patterns);
 
 	/* inherit maxbytes from lower file system */
 	sb->s_maxbytes = lower_sb->s_maxbytes;
@@ -204,8 +194,10 @@ out_sput:
 out_free:
 	path_put(&lower_path);
 /*******************CLOSE PATTERN FILE**************************/
-freebuf: kfree(buffer);
-close_file: filp_close(pattern_db,NULL);
+freebuf:
+	kfree (buffer);
+close_file:
+	filp_close(pattern_db, NULL);
 out:
 	return err;
 }
@@ -213,10 +205,15 @@ out:
 struct dentry *amfs_mount(struct file_system_type *fs_type, int flags,
 			    const char *dev_name, void *raw_data)
 {
-	struct sb_void_data *lower_path_name = kmalloc(sizeof(struct sb_void_data),__GFP_WAIT);
-	lower_path_name->dev_name = (char*)dev_name;
-	lower_path_name->pattern_db_pointer = (char*)raw_data;
-	return mount_nodev(fs_type, flags,(void *) lower_path_name,
+	struct sb_void_data *lower_path_name = kmalloc(
+			sizeof(struct sb_void_data), __GFP_WAIT);
+	lower_path_name->dev_name = (char *)dev_name;
+	if ((char *)raw_data != NULL)
+		lower_path_name->pattern_db_pointer = (char *)raw_data;
+	else
+		lower_path_name->pattern_db_pointer = NULL;
+
+	return mount_nodev(fs_type, flags, (void *)lower_path_name,
 			   amfs_read_super);
 }
 

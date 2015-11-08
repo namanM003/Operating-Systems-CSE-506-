@@ -1,11 +1,50 @@
 Empty placeholder for CSE-506 F'15 HW2 README file
-Constraints:
-	The PatternDB file should contain a maximum of 64 Patterns and each
-pattern string length can be maximum of 63 (excluding \0 character). Hence
-making a file size a maximum of 4KB
+
+Command to mount file system
+	mount -t amfs -o pattdb="File name" "Directory" "Mount Point"
+
+To compile amfsctl in path hw2-nmittal/fs/amfs
+	RUN this command.
+	gcc -o amfsctl amfsctl.c
+
+Constraints on PatternDB:
+
+	1.) The PatternDB file should contain a maximum of 64 Patterns and each
+pattern string length can be maximum of 63 (excluding '\0' character). Hence
+making a file size a maximum of 4KB.
+		Why this constraint?
+			I have put this constraint because if a pattern is lying
+on the boundry and only half a pattern is read in to buffer and other half will
+be read during next read call then strsep fxn might have read some extra data until
+it would not have found a '\n' hence making a corrupt node and this is also a
+bufferflow attack.
+
+	2.) The pattern db should lie outside the folder which is being mounted
+the resoning is stated below.
 
 Design Decision:
-	1. ) During amfs_write if I see a bad pattern in buffer I dont write
-data to the file nor do I set the Extra Attribute for the file because the bad
-pattern wasn't return.
 
+	1.) During amfs_write if I see a bad pattern in buffer I dont write
+data to the file nor do I set the Extra Attribute for the file because the bad
+pattern wasn't written.
+
+	2.) I assume that pattern database will always lie outside the directory
+which is being mounted.
+	*Reasoning
+		-> I assume this file system can be mounted multiple time
+because of which the pattern database should always remain updated which I
+am doing so after every addition or removal of pattern but if the pattern
+database lies inside the directory which is mounted I cannot update it later on.
+		-> Reason why I can't update is if my IOCTL tries to open
+patterndb file then call will go to amfs_open (if patterndb file lies inside the
+directory which is being mounted) which will set EA as bad file and
+making file inaccessible later on.
+
+	3.) In amfsctl I am assuming that the user will be providing the correct
+mount point.
+
+	4.) I am not checking if a user has a read/write permission on file or 
+not because in my model I am thinking every user can add a pattern to pattern
+database and any user can use this file-system to check for malwares.
+Therefore I have not put any check whether a user have permission to read and
+write file or not.

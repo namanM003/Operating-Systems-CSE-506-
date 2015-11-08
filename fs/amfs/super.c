@@ -24,24 +24,23 @@ static void amfs_put_super(struct super_block *sb)
 	struct super_block *s;
 	struct pattern *list_pat;
 	struct pattern *list_head;
-	struct list_head *pos,*q;
+	struct list_head *pos, *q;
 	spd = AMFS_SB(sb);
-	
 	if (!spd)
 		return;
+	/* Freeing memory allocated for storing patterns and list nodes*/
 	list_head = AMFS_SB(sb)->pattern_list_head;
-	list_for_each_safe(pos, q, &list_head->pattern_list){
-		list_pat = list_entry(pos,struct pattern,pattern_list);
-		
+	list_for_each_safe(pos, q, &list_head->pattern_list) {
+		list_pat = list_entry(pos, struct pattern, pattern_list);
 		kfree(list_pat->patrn);
 		list_del(pos);
 		kfree(list_pat);
-		
 	}
-
+	/* Freeing memory allocated to pattern db file name*/
+	kfree(AMFS_SB(sb)->pattern_db);
 	/* decrement lower super references */
 	s = amfs_lower_super(sb);
-	amfs_set_lower_super(sb, NULL,NULL,NULL);
+	amfs_set_lower_super(sb, NULL, NULL, NULL);
 	atomic_dec(&s->s_active);
 	kfree(spd);
 	sb->s_fs_info = NULL;

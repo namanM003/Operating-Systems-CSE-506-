@@ -48,7 +48,25 @@ static int amfs_link(struct dentry *old_dentry, struct inode *dir,
 	u64 file_size_save;
 	int err;
 	struct path lower_old_path, lower_new_path;
+	/************XATTR************/
+	char *value = NULL;
+	value = kzalloc(5, __GFP_WAIT);
+	if (value == NULL) {
+		err = -ENOMEM;
+		goto out_err;
+	}
+	if (amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5) > 0) {
+		if (!strncmp(value, AMFS_BADFILE, 3)) {
+			err = -EPERM;
+			goto freevalue;
+		}
+	} else if (amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5)
+			!= -ENODATA){
+		err = amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5);
+		goto freevalue;
+	}
 
+	/************XATTR***********/
 	file_size_save = i_size_read(old_dentry->d_inode);
 	amfs_get_lower_path(old_dentry, &lower_old_path);
 	amfs_get_lower_path(new_dentry, &lower_new_path);
@@ -73,6 +91,9 @@ out:
 	unlock_dir(lower_dir_dentry);
 	amfs_put_lower_path(old_dentry, &lower_old_path);
 	amfs_put_lower_path(new_dentry, &lower_new_path);
+freevalue:
+	kfree(value);
+out_err:
 	return err;
 }
 
@@ -84,7 +105,7 @@ static int amfs_unlink(struct inode *dir, struct dentry *dentry)
 	struct dentry *lower_dir_dentry;
 	struct path lower_path;
 	/******************************XATTR******************/
-	char* value = NULL;
+/*	char* value = NULL;
 	value = kzalloc(5,__GFP_WAIT);
 	if(value==NULL){
 		err = -ENOMEM;
@@ -96,7 +117,7 @@ static int amfs_unlink(struct inode *dir, struct dentry *dentry)
 			goto freevalue;
 		}
 	}
-/*	else if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5) != -ENODATA){
+	else if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5) != -ENODATA){
 		err = amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5);
 		goto freevalue;
 	}
@@ -129,9 +150,6 @@ out:
 	unlock_dir(lower_dir_dentry);
 	dput(lower_dentry);
 	amfs_put_lower_path(dentry, &lower_path);
-freevalue: 
-	kfree(value);
-out_err:
 	return err;
 }
 
@@ -142,7 +160,23 @@ static int amfs_symlink(struct inode *dir, struct dentry *dentry,
 	struct dentry *lower_dentry;
 	struct dentry *lower_parent_dentry = NULL;
 	struct path lower_path;
-
+/*	char* value = NULL;
+	value = kzalloc(5,__GFP_WAIT);
+	if(value==NULL){
+		err = -ENOMEM;
+		goto out_err;
+	}
+	if(amfs_getxattr(dentry, AMFS_XATTR_NAME , value,5) > 0){
+		if(!strncmp(value,AMFS_BADFILE,3)){
+			err = -EPERM;
+			goto freevalue;
+		}
+	}else if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5)
+			!= -ENODATA){
+		err = amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5);
+		goto freevalue;
+	}
+*/
 	amfs_get_lower_path(dentry, &lower_path);
 	lower_dentry = lower_path.dentry;
 	lower_parent_dentry = lock_parent(lower_dentry);
@@ -263,26 +297,25 @@ static int amfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	struct dentry *trap = NULL;
 	struct path lower_old_path, lower_new_path;
 	/*******Variable which will help in checking XATTR***************/
-	char* value = NULL;
-	value = kzalloc(5,__GFP_WAIT);
-	if(value==NULL){
+	char *value = NULL;
+	value = kzalloc(5, __GFP_WAIT);
+	if (value == NULL) {
 		err = -ENOMEM;
 		goto exitcode;
 	}
-	if(amfs_getxattr(old_dentry, AMFS_XATTR_NAME , value, 5) > 0){
-		if(!strncmp(value,AMFS_BADFILE,3)){
+	if (amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5) > 0) {
+		if (!strncmp(value, AMFS_BADFILE, 3)) {
 			err = -EPERM;
 			goto freevalue;
 		}
-	}
-	else if(amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5) != -ENODATA){
+	} else if (amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5)
+			!= -ENODATA) {
 		err = amfs_getxattr(old_dentry, AMFS_XATTR_NAME, value, 5);
 		goto freevalue;
 	}
 	/****************************************************************/
 	amfs_get_lower_path(old_dentry, &lower_old_path);
 	amfs_get_lower_path(new_dentry, &lower_new_path);
-	
 	lower_old_dentry = lower_old_path.dentry;
 	lower_new_dentry = lower_new_path.dentry;
 	lower_old_dir_dentry = dget_parent(lower_old_dentry);
@@ -321,10 +354,10 @@ out:
 	dput(lower_new_dir_dentry);
 	amfs_put_lower_path(old_dentry, &lower_old_path);
 	amfs_put_lower_path(new_dentry, &lower_new_path);
-freevalue: 
+freevalue:
 	kfree(value);
 exitcode:
-      	return err;
+	return err;
 }
 
 static int amfs_readlink(struct dentry *dentry, char __user *buf, int bufsiz)
@@ -504,7 +537,7 @@ amfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 		goto out;
 	}
 
-	err = vfs_setxattr(lower_dentry,name, value, size, flags);
+	err = vfs_setxattr(lower_dentry, name, value, size, flags);
 out:
 	amfs_put_lower_path(dentry, &lower_path);
 	return err;
@@ -547,8 +580,8 @@ amfs_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
 		goto out;
 	}
 
-	err = lower_dentry->d_inode->i_op->listxattr(lower_dentry,
-						     buffer, buffer_size);
+	err = vfs_listxattr(lower_dentry,
+				     buffer, buffer_size);
 out:
 	amfs_put_lower_path(dentry, &lower_path);
 	return err;

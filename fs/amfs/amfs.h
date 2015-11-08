@@ -36,11 +36,11 @@
 
 /* useful for tracking code reachability */
 #define UDBG printk(KERN_DEFAULT "DBG:%s:%s:%d\n", __FILE__, __func__, __LINE__)
-// Defination's for XATTRIBUTES
-
+/* Defination's for XATTRIBUTES */
 #define AMFS_XATTR_NAME "user.bad"
 #define AMFS_BADFILE "bad"
 #define AMFS_GOODFILE "good"
+
 /* operations vectors defined in specific files */
 extern const struct file_operations amfs_main_fops;
 extern const struct file_operations amfs_dir_fops;
@@ -66,14 +66,13 @@ extern int amfs_interpose(struct dentry *dentry, struct super_block *sb,
 			    struct path *lower_path);
 /**************************************************************** STRUCT TO STORE FILE POINTER of PATTERN DB and PATTERNS IN LINKED LIST***************************/
 struct sb_void_data{
-	char* dev_name;
-	char* pattern_db_pointer;
-//	struct pattern *patterns;
+	char *dev_name;
+	char *pattern_db_pointer;
 };
 
 struct pattern{
 	struct list_head pattern_list;
-	char* patrn;
+	char *patrn;
 };
 
 /*********************************************STRUCT ENDS HERE***************************************/
@@ -102,7 +101,7 @@ struct amfs_dentry_info {
 /* amfs super-block data in memory */
 struct amfs_sb_info {
 	struct super_block *lower_sb;
-	char* pattern_db;
+	char *pattern_db;
 	struct pattern *pattern_list_head;
 };
 
@@ -118,10 +117,12 @@ static inline struct amfs_inode_info *AMFS_I(const struct inode *inode)
 	return container_of(inode, struct amfs_inode_info, vfs_inode);
 }
 
-/*************************************XATTR CODE*************************************/
-int amfs_setxattr(struct dentry *dentry, const char *name, const void *value,size_t size, int flags);
-ssize_t amfs_getxattr(struct dentry *dentry, const char *name, void *buffer,size_t size);
-/*************************************XATTR CODE ENDS HERE**************************/
+/***************************XATTR CODE*************************************/
+int amfs_setxattr(struct dentry *dentry, const char *name, const void *value,
+		size_t size, int flags);
+ssize_t amfs_getxattr(struct dentry *dentry, const char *name, void *buffer,
+		size_t size);
+/**************************XATTR CODE ENDS HERE**************************/
 
 /* dentry to private data */
 #define AMFS_D(dent) ((struct amfs_dentry_info *)(dent)->d_fsdata)
@@ -162,14 +163,10 @@ static inline struct super_block *amfs_lower_super(
 }
 
 static inline void amfs_set_lower_super(struct super_block *sb,
-					  struct super_block *val, char* pattern_db, struct pattern* ptrn)
+					struct super_block *val, char *pattern_db, struct pattern *ptrn)
 {
 	AMFS_SB(sb)->lower_sb = val;
-	//AMFS_SB(sb)->pattern_db = pattern_db;
-//	AMFS_SB(sb)->pattern_db = (char*)kzalloc(strlen(pattern_db)+1,__GFP_WAIT);
 	AMFS_SB(sb)->pattern_db = pattern_db;
-	
-	printk("Testing supervlock value %s in wrapfs.h\n",AMFS_SB(sb)->pattern_db);
 	AMFS_SB(sb)->pattern_list_head = ptrn;
 }
 

@@ -203,7 +203,6 @@ static struct dentry *__amfs_lookup(struct dentry *dentry,
 	const char *name;
 	struct path lower_path;
 	struct qstr this;
-
 	/* must initialize dentry operations */
 	d_set_d_op(dentry, &amfs_dops);
 
@@ -215,14 +214,28 @@ static struct dentry *__amfs_lookup(struct dentry *dentry,
 	/* now start the actual lookup procedure */
 	lower_dir_dentry = lower_parent_path->dentry;
 	lower_dir_mnt = lower_parent_path->mnt;
-
 	/* Use vfs_path_lookup to check if the dentry exists or not */
 	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name, 0,
 			      &lower_path);
 
 	/* no error: handle positive dentries */
 	if (!err) {
-		amfs_set_lower_path(dentry, &lower_path);
+/*		value = kmalloc(5,__GFP_WAIT);
+		if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5) > 0){
+			if(!strncmp(value, AMFS_BADFILE, 3)){
+				err = -ECANCELED;
+				kfree(value);
+				goto out;
+			}
+		}
+		else if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 3)
+				!= -ENODATA){
+			err = amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 3);
+			kfree(value);
+			goto out;
+		}
+		kfree(value);
+*/		amfs_set_lower_path(dentry, &lower_path);
 		err = amfs_interpose(dentry, dentry->d_sb, &lower_path);
 		if (err) /* path_put underlying path on error */
 			amfs_put_reset_lower_path(dentry);
