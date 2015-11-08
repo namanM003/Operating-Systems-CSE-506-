@@ -48,8 +48,13 @@ static int amfs_link(struct dentry *old_dentry, struct inode *dir,
 	u64 file_size_save;
 	int err;
 	struct path lower_old_path, lower_new_path;
-	/************XATTR************/
 	char *value = NULL;
+	if (old_dentry->d_inode->i_ino ==
+			AMFS_SB(old_dentry->d_sb)->inode_no) {
+		err = -EPERM;
+		goto out_err;
+	}
+	/************XATTR************/
 	value = kzalloc(5, __GFP_WAIT);
 	if (value == NULL) {
 		err = -ENOMEM;
@@ -104,24 +109,15 @@ static int amfs_unlink(struct inode *dir, struct dentry *dentry)
 	struct inode *lower_dir_inode = amfs_lower_inode(dir);
 	struct dentry *lower_dir_dentry;
 	struct path lower_path;
-	/******************************XATTR******************/
-/*	char* value = NULL;
-	value = kzalloc(5,__GFP_WAIT);
-	if(value==NULL){
-		err = -ENOMEM;
+	/*******************Check if trying to delete pattern file******************/
+	if (dentry->d_inode->i_ino == AMFS_SB(dentry->d_sb)->inode_no) {
+		err = -EPERM;
 		goto out_err;
 	}
-	if(amfs_getxattr(dentry, AMFS_XATTR_NAME , value,5) > 0){
-		if(!strncmp(value,AMFS_BADFILE,3)){
-			err = -EPERM;
-			goto freevalue;
-		}
-	}
-	else if(amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5) != -ENODATA){
-		err = amfs_getxattr(dentry, AMFS_XATTR_NAME, value, 5);
-		goto freevalue;
-	}
-*/	/**********************XATTR ENDS HERE**************/
+	/* here I am not allowing user to delete pattern db file. This will only
+	 * work if pattern db lies inside the directory which is being mounted
+	 */
+	/**********************XATTR ENDS HERE**************/
 	amfs_get_lower_path(dentry, &lower_path);
 	lower_dentry = lower_path.dentry;
 	dget(lower_dentry);
@@ -150,6 +146,7 @@ out:
 	unlock_dir(lower_dir_dentry);
 	dput(lower_dentry);
 	amfs_put_lower_path(dentry, &lower_path);
+out_err:
 	return err;
 }
 
@@ -298,6 +295,12 @@ static int amfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	struct path lower_old_path, lower_new_path;
 	/*******Variable which will help in checking XATTR***************/
 	char *value = NULL;
+	if (old_dentry->d_inode->i_ino ==
+		       	AMFS_SB(old_dentry->d_sb)->inode_no) {
+		err = -EPERM;
+		goto exitcode;
+	}
+
 	value = kzalloc(5, __GFP_WAIT);
 	if (value == NULL) {
 		err = -ENOMEM;

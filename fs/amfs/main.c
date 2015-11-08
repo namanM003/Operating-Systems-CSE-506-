@@ -58,7 +58,7 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	pattern_db = filp_open(pattern_db_pointer, O_RDONLY, 0);
 	if (IS_ERR(pattern_db) || pattern_db == NULL) {
 		printk("Input file doesn't exist\n");
-		err = -EFAULT;
+		err = -ENOENT;
 		kfree(pattern_db_pointer);
 		goto out;
 	}
@@ -73,7 +73,8 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	}
 	memset(buffer, 0, PAGE_SIZE);
 	set_fs(get_ds());
-	bytes_read = vfs_read(pattern_db, buffer, PAGE_SIZE, &pattern_db->f_pos);
+	bytes_read = vfs_read(pattern_db, buffer, PAGE_SIZE,
+			&pattern_db->f_pos);
 	if (bytes_read < 0) {
 		err = -EFAULT;
 		set_fs(old_fs);
@@ -113,8 +114,8 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	}
 
 	/* parse lower path */
-	err = kern_path(void_attachment->dev_name, LOOKUP_FOLLOW | LOOKUP_DIRECTORY,
-			&lower_path);
+	err = kern_path(void_attachment->dev_name,
+			LOOKUP_FOLLOW | LOOKUP_DIRECTORY, &lower_path);
 	if (err) {
 		printk(KERN_ERR	"amfs: error accessing "
 		       "lower directory '%s'\n", void_attachment->dev_name);
@@ -132,7 +133,8 @@ static int amfs_read_super(struct super_block *sb, void *raw_data, int silent)
 	/* set the lower superblock field of upper superblock */
 	lower_sb = lower_path.dentry->d_sb;
 	atomic_inc(&lower_sb->s_active);
-	amfs_set_lower_super(sb, lower_sb, pattern_db_pointer, patterns);
+	amfs_set_lower_super(sb, lower_sb, pattern_db_pointer, patterns,
+			pattern_db->f_inode->i_ino);
 
 	/* inherit maxbytes from lower file system */
 	sb->s_maxbytes = lower_sb->s_maxbytes;

@@ -25,25 +25,56 @@ static void amfs_put_super(struct super_block *sb)
 	struct pattern *list_pat;
 	struct pattern *list_head;
 	struct list_head *pos, *q;
+	char *pattern_file_name;
+	struct file *pattern_file = NULL;
+	char delimeter = '\n';
+	mm_segment_t old_fs;
+	pattern_file_name = kzalloc(strlen(AMFS_SB(sb)->pattern_db)+1,
+					__GFP_WAIT);
+	strcpy(pattern_file_name, AMFS_SB(sb)->pattern_db);
 	spd = AMFS_SB(sb);
 	if (!spd)
 		return;
 	/* Freeing memory allocated for storing patterns and list nodes*/
-	list_head = AMFS_SB(sb)->pattern_list_head;
-	list_for_each_safe(pos, q, &list_head->pattern_list) {
-		list_pat = list_entry(pos, struct pattern, pattern_list);
-		kfree(list_pat->patrn);
-		list_del(pos);
-		kfree(list_pat);
-	}
+	list_head = (struct pattern *)AMFS_SB(sb)->pattern_list_head;
 	/* Freeing memory allocated to pattern db file name*/
 	kfree(AMFS_SB(sb)->pattern_db);
 	/* decrement lower super references */
 	s = amfs_lower_super(sb);
-	amfs_set_lower_super(sb, NULL, NULL, NULL);
+	amfs_set_lower_super(sb, NULL, NULL, NULL, 0);
 	atomic_dec(&s->s_active);
 	kfree(spd);
 	sb->s_fs_info = NULL;
+	/*******Copy Pattern db back to file ******/
+	old_fs = get_fs();
+	pattern_file = filp_open(pattern_file_name, O_WRONLY | O_TRUNC, 0);
+	/* If pattern file is deleted by user then just empty the list 
+	 * but dont create a new pattern file and write to it
+	 */
+	if (IS_ERR(pattern_file) || pattern_file == NULL) {
+		list_for_each_safe(pos, q, &list_head->pattern_list){
+			list_pat = list_entry(pos, struct pattern,
+					pattern_list);
+			kfree(list_pat->patrn);
+			list_del(pos);
+			kfree(list_pat);
+		}
+		goto out;
+	}
+	list_for_each_safe(pos, q, &list_head->pattern_list) {
+		list_pat = list_entry(pos, struct pattern, pattern_list);
+		set_fs(get_ds());
+		vfs_write(pattern_file, list_pat->patrn, strlen(list_pat->patrn), &pattern_file->f_pos);
+		vfs_write(pattern_file, &delimeter, 1, &pattern_file->f_pos);
+		set_fs(old_fs);
+		kfree(list_pat->patrn);
+		list_del(pos);
+		kfree(list_pat);
+	}
+	filp_close(pattern_file, NULL);
+out:
+	kfree(pattern_file_name);
+
 }
 
 static int amfs_statfs(struct dentry *dentry, struct kstatfs *buf)

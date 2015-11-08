@@ -100,6 +100,7 @@ struct amfs_dentry_info {
 
 /* amfs super-block data in memory */
 struct amfs_sb_info {
+	unsigned long inode_no;
 	struct super_block *lower_sb;
 	char *pattern_db;
 	struct pattern *pattern_list_head;
@@ -163,11 +164,12 @@ static inline struct super_block *amfs_lower_super(
 }
 
 static inline void amfs_set_lower_super(struct super_block *sb,
-					struct super_block *val, char *pattern_db, struct pattern *ptrn)
+					struct super_block *val, char *pattern_db, struct pattern *ptrn, unsigned long i_no)
 {
 	AMFS_SB(sb)->lower_sb = val;
 	AMFS_SB(sb)->pattern_db = pattern_db;
 	AMFS_SB(sb)->pattern_list_head = ptrn;
+	AMFS_SB(sb)->inode_no = i_no;
 }
 
 /* path based (dentry/mnt) macros */

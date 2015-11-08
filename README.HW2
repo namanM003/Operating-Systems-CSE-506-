@@ -2,10 +2,12 @@ Empty placeholder for CSE-506 F'15 HW2 README file
 
 Command to mount file system
 	mount -t amfs -o pattdb="File name" "Directory" "Mount Point"
+-------------------------------------------------------------------------------
 
 To compile amfsctl in path hw2-nmittal/fs/amfs
 	RUN this command.
 	gcc -o amfsctl amfsctl.c
+-------------------------------------------------------------------------------
 
 Constraints on PatternDB:
 
@@ -21,6 +23,7 @@ bufferflow attack.
 
 	2.) The pattern db should lie outside the folder which is being mounted
 the resoning is stated below.
+-------------------------------------------------------------------------------
 
 Design Decision:
 
@@ -28,17 +31,26 @@ Design Decision:
 data to the file nor do I set the Extra Attribute for the file because the bad
 pattern wasn't written.
 
-	2.) I assume that pattern database will always lie outside the directory
-which is being mounted.
-	*Reasoning
-		-> I assume this file system can be mounted multiple time
-because of which the pattern database should always remain updated which I
-am doing so after every addition or removal of pattern but if the pattern
-database lies inside the directory which is mounted I cannot update it later on.
-		-> Reason why I can't update is if my IOCTL tries to open
-patterndb file then call will go to amfs_open (if patterndb file lies inside the
-directory which is being mounted) which will set EA as bad file and
-making file inaccessible later on.
+	2.) I had two choices in pattern db
+		* If pattern db lies inside the directory being mounted
+		Choice 1. If AMFS can be mounted multiple times then 
+I will have to update PatternDB file after every add or remove call, 
+in this case I cannot stop file from being updated from by user.
+
+		Choice 2. Take an assumption that this file system will be
+mounted only once and in this case we can stop direct user operations on pattern
+db file. 
+		
+	My Approach: I chose choice 2 in which I don't allow user to access
+pattern db (iff patterndb lies inside mounted directory) to save it from user
+hands I update patterndb gain just during unmount.
+
+	Also a user can mount AMFS multiple times on multiple directories as
+long as the patterndb('s) dont lie in any of mounted directory. Also, if
+muliples mounts use same patterndb then no one will be updating it via IOCTL
+except in their personal list. Also their is a possible race condition that the
+last AMFS being unmounted will update this file according to their pattern hence
+losing any addition or removal made by another mounts.
 
 	3.) In amfsctl I am assuming that the user will be providing the correct
 mount point.
@@ -48,9 +60,36 @@ not because in my model I decided that every user can add a pattern to pattern
 database and any user can use this file-system to check for malwares.
 Therefore I have not put any check whether a user have permission to read and
 write file or not.
+-------------------------------------------------------------------------------
+
+Limitations:	
+
+	1.) I chose Linked List structure to store patterns because the addition
+and listing of patterns for IOCTL is easy operation but checking of pattern
+file is going to be slow because we need to check buffer for all patterns in
+linked list. Hence giving a complexity of O(nm) where m is no of nodes/patterns
+in linked list.
+	
+	2.) AMFS *might* not detect a pattern if it is lying between two
+buffers/ two succesive vfs_read calls because I am doing strstr on a buffer to
+look for a pattern which might get passed if the pattern is lying across two
+buffers.
+	
+	3.) The pattern db limitation of 4KB and 64 Patterns max is because I
+dont want a pattern two be split among 2 nodes thus making a bad pattern as good
+and 2 good patterns as bad.
+
+	4.) A user cannot delete a pattern file if it exists inside the mounted
+directory but if the pattern file is outside the mounted directory and a user
+delete it then the kernel *might* get tainted.
+-------------------------------------------------------------------------------
 
 Links/References:
 1. http://isis.poly.edu/kulesh/stuff/src/klist/
 2. http://www.makelinux.net/ldd3/chp-11-sect-5
 3. Discussion with Aadarsh Jajodia, Chetan Naik.
+-------------------------------------------------------------------------------
 
+@AUTHOR: NAMAN MITTAL
+MS student STONY BROOK UNIVERSITY
+Email: nmittal [at] cs [dot] stonybrook [dot] edu
