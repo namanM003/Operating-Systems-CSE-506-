@@ -44,7 +44,13 @@ making file inaccessible later on.
 mount point.
 
 	4.) I am not checking if a user has a read/write permission on file or 
-not because in my model I am thinking every user can add a pattern to pattern
+not because in my model I decided that every user can add a pattern to pattern
 database and any user can use this file-system to check for malwares.
 Therefore I have not put any check whether a user have permission to read and
 write file or not.
+
+Links/References:
+1. http://isis.poly.edu/kulesh/stuff/src/klist/
+2. http://www.makelinux.net/ldd3/chp-11-sect-5
+3. Discussion with Aadarsh Jajodia, Chetan Naik.
+

@@ -101,7 +101,6 @@ static ssize_t amfs_write(struct file *file, const char __user *buf,
 	list_for_each_entry(pattern, &tmp_head->pattern_list, pattern_list) {
 		if (strstr(buf, pattern->patrn)) {
 			err = -EPERM;
-			file->f_inode->i_flags |= S_IMMUTABLE;
 			goto freevalue;
 		}
 		/* In amfs_write we will not set a file and good if there was no
