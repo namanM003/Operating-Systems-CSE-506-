@@ -87,7 +87,8 @@ delete it then the kernel *might* get tainted.
 Links/References:
 1. http://isis.poly.edu/kulesh/stuff/src/klist/
 2. http://www.makelinux.net/ldd3/chp-11-sect-5
-3. Discussion with Aadarsh Jajodia, Chetan Naik.
+3. http://stackoverflow.com/questions/18964744/ioctl-call-not-working-to-read-and-write-the-device
+4. Discussion with Aadarsh Jajodia, Chetan Naik.
 -------------------------------------------------------------------------------
 
 @AUTHOR: NAMAN MITTAL

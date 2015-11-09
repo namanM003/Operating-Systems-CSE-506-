@@ -6,4 +6,3 @@
 
 #define AMFSCTL_MAGIC_MAX 2
 
-//source : http://stackoverflow.com/questions/18964744/ioctl-call-not-working-to-read-and-write-the-device

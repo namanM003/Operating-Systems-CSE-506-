@@ -16,8 +16,6 @@ int main(int argc, char **argv)
 	char *file = NULL;
 	int code = -1;
 	int list_flag = 0;
-	char *pattern = NULL;
-	char delimeter = '\n';
 	/* Operations
 	 * List: 0
 	 * Add: 1
