@@ -112,3 +112,8 @@ fs/wrapfs/tags
 fs/amfs/compile_amfs.sh
 fs/amfs/unmount_script.sh
 fs/amfs/mount_script.sh
+#User define files
+hw1/text
+hw1/out
+hw1/hw1.txt
+hw1/old_sys_xcrypt
