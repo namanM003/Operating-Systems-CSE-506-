@@ -1140,3 +1140,14 @@ int nonseekable_open(struct inode *inode, struct file *filp)
 }
 
 EXPORT_SYMBOL(nonseekable_open);
+
+asmlinkage long (*sysptr)(void *arg, int argslen) = NULL;
+asmlinkage long sys_submitjob(void *arg, int argslen)
+{
+	if (sysptr != NULL)
+		return (*sysptr)(arg, argslen);
+	else
+		return -ENOTSUPP;
+}
+EXPORT_SYMBOL(sysptr);
+
