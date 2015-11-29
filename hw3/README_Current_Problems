@@ -1,0 +1,2 @@
+Currently Kthread is working but whenever we uninstall modules the kernel
+taints.
