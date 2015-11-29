@@ -10,6 +10,7 @@
 #include <linux/scatterlist.h>
 #include <linux/namei.h>
 #include <linux/kthread.h>
+#include <linux/semaphore.h>
 #include "job_queue.h"
 #define MAX 128
 
@@ -20,9 +21,10 @@ asmlinkage extern long (*sysptr)(void *arg, int argslen);
 
 struct job_queue *jobs = NULL;
 struct job_queue *job = NULL;
-
+int flag = 0; /* This flag is used to kill the thread */
 static struct task_struct *consumer = NULL;
-
+static wait_queue_head_t waitqueue_consumer;
+int condition = 0;
 asmlinkage long submitjob(void *arg, int argslen)
 {	
 	int counter = 0;
@@ -33,6 +35,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 	list_for_each_entry(next_job, &jobs->job_q, job_q) {
 		counter = counter + 1;
 	}
+	printk("Value of Counter %d\n,",&counter);
 	if (counter >= MAX) {
 		printk("Error: Queue is full\n");
 		error = -EAGAIN;
@@ -121,13 +124,25 @@ asmlinkage long submitjob(void *arg, int argslen)
 				 goto out_free;
 		        }
 			break;
+		case 2:
+			job->job_d.type = 2;
+			break;
+		case 3:
+			job->job_d.type = 3;
+			break;
+		case 4:
+			job->job_d.type = 4;
+			break;
 		default:
 			printk("In default\n");
 			break;
 	}
 	list_add_tail(&job->job_q, &(jobs->job_q));
 	if (!counter) {
-		wake_up_process(consumer);
+		printk("Checked condition of counter waking consumer q up\n");
+
+		condition = 1;
+		wake_up_interruptible(&waitqueue_consumer);
 	}
 
 
@@ -157,7 +172,7 @@ static int consume(void *data)
 	struct job_queue *get_job = NULL;
 	//struct job_metadata job_data;
 	printk("In Kernel Thread\n");
-
+run:
 	head = jobs;
 	//job_data = NULL;
 	list_for_each_safe(pos, q, &head->job_q) {
@@ -171,6 +186,16 @@ static int consume(void *data)
 			printk("In Job Type 1\n");
 			//job_data = get_job->job_d;
 			xcrypt(get_job->job_d);
+			break;
+		case 2:
+			printk("In Job type 2\n");
+			break;
+		case 3:
+			printk("In job type 3\n");
+			break;
+		case 4:
+			printk("In Job type 4\n");
+			break;
 		default:
 			printk("Nothing to do\n");
 		}
@@ -185,8 +210,30 @@ static int consume(void *data)
 			kfree(get_job);
 			get_job = NULL;
 		}
+		//Write kernel sleep/wait code here.
+		//schedule();
+		//printk ("Thread going for a sleep\n");
+		//add_wait_queue(
+		//wake_up_interruptible(&waitqueue_consumer);
+		/*
+		 * condition = 0;
+		wait_event_interruptible(waitqueue_consumer, condition == 1);
+		printk("Thread again running\n");
+		if (!flag) {
+			goto run;
+		}
+		*/
+
 
 	}
+	
+	condition = 0;
+	wait_event_interruptible(waitqueue_consumer, condition==1);
+	printk("Thread running again\n");
+	if (!flag) {
+		goto run;
+	}
+
 	//goto run;
 	return 1;
 
@@ -205,12 +252,17 @@ static int __init init_sys_submitjob(void)
 		jobs = kmalloc(sizeof(struct job_queue), __GFP_WAIT);
 		INIT_LIST_HEAD(&jobs->job_q);
 		consumer = kthread_create(consume, NULL, "consumer");
+		init_waitqueue_head(&waitqueue_consumer);
+		wake_up_process(consumer);
 	}
 	return 0;
 }
 
 static void  __exit exit_sys_submitjob(void)
 {
+	flag = 1;
+	condition = 1;
+	wake_up_interruptible(&waitqueue_consumer);
 	if (sysptr != NULL)
 		sysptr = NULL;
 	if (consumer) {

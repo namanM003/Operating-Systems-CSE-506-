@@ -78,7 +78,7 @@ int main(int argc,char* argv[])
 	}
 	argument.input_file = malloc(6);
 	argument.output_file = malloc(6);
-	argument.type = 1;
+	argument.type = 3;
 	memset(argument.input_file, 0, 6);
 	memset(argument.output_file, 0, 6);
 	memcpy(argument.input_file, "file1", 5);
