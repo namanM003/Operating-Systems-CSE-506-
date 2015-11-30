@@ -1,2 +1,2 @@
-Currently Kthread is working but whenever we uninstall modules the kernel
-taints.
+[SOLVED] Currently Kthread is working but whenever we uninstall modules the kernel
+taints. 
