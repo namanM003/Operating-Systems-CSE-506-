@@ -37,6 +37,8 @@ asmlinkage long submitjob(void *arg, int argslen)
 	int error = 0;
 	struct job_queue *head = NULL;
 	struct job_queue *next_job  = NULL;
+	char *buffer = NULL;
+	char *list_job = NULL;
 	head = jobs;
 	list_for_each_entry(next_job, &jobs->job_q, job_q) {
 		counter = counter + 1;
@@ -75,6 +77,9 @@ asmlinkage long submitjob(void *arg, int argslen)
 	 * Type 2: Compress/Decompress file
 	 * Type 3 Compute Checksum
 	 * Type 4: Concatenate File
+	 * Type 5: List all available jobs
+	 * Type 6: Delete a job
+	 * Type 7: Change Priority of a job
 	 */
 	switch(job->job_d.type) {
 	
@@ -143,6 +148,43 @@ asmlinkage long submitjob(void *arg, int argslen)
 			break;
 		case 4:
 			job->job_d.type = 4;
+			break;
+		case 5:
+			/* Assuming user is sending a buffer equivalent to
+			 * PAGE_SIZE, if not than allocate buffer reuired and
+			 * modify program as per the requirement
+			 */
+			buffer = (char *)kzalloc(PAGE_SIZE, __GFP_WAIT);
+			counter = 0;
+			list_job = (char *)kzalloc(6, __GFP_WAIT);
+			list_for_each_entry(job, &jobs->job_q, job_q) {
+				snprintf(list_job, 5, "%d %d",
+					job->job_d.job_id, job->job_d.type);
+				strncat(buffer, list_job, strlen(list_job));
+				strcat(buffer, "\n");
+			}
+			/* using the algorithm field of job metadata to store
+			 * data about job
+			 */
+			error = 0;
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, buffer, strlen(buffer))) {
+				error = -EFAULT;
+			}
+			kfree(buffer);
+			kfree(list_job);
+			//error = 0;
+			goto out;	
+			break;
+		case 6:
+			/* Code to remove a job from the list */
+			error = 0;
+			goto out;
+			break;
+		case 7:
+			/* Code to change priority of a job*/
+			error = 0;
+			goto out;
 			break;
 		default:
 			printk("In default\n");
