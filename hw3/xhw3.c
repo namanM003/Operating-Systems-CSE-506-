@@ -78,7 +78,10 @@ int main(int argc,char* argv[])
 	}
 	argument.input_file = malloc(6);
 	argument.output_file = malloc(6);
-	argument.type = 3;
+	argument.type = 5;
+	argument.job_priority = 5;
+	argument.algorithm = malloc(4096);
+	//argument.job_id = 10;
 	memset(argument.input_file, 0, 6);
 	memset(argument.output_file, 0, 6);
 	memcpy(argument.input_file, "file1", 5);
@@ -88,13 +91,14 @@ int main(int argc,char* argv[])
 	 */
 	rc = syscall(__NR_submitjob, dummy, 3);
 	if (rc == 0) {
-		printf("syscall returned %d ",rc);
+		printf("syscall returned %d\n ",rc);
 		if (flag_encrypt) {
 			printf("Encryption Successful\n");
 		}
 		if (flag_decrypt) {
 			printf("Decryption Successful\n");
 		}
+		printf(argument.algorithm);
 	}
 	else {
 		perror("ERROR:");
