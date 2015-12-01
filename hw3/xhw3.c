@@ -16,14 +16,48 @@ int main(int argc,char* argv[])
 {
 	int rc;
 	/****Variable Declarations start here*********/
-	//struct stat stat_data;
-	//struct stat output_file_stat;	
+	/* Job Defination Flags
+	 * 1 to Encrypt/Decrypt
+	 * 2 Compression/Decompression
+	 * 3 For hashing
+	 * 4 to list all jobs
+	 * 5 to remove a job
+	 * 6 to change priority
+	 */
+	/*
+	 * Other Flags
+	 * -t type
+	 * -i input file //NOT USING
+	 * -o output file //NOT USING
+	 * -e/-d to encrypt/decrypt
+	 * -c/-z to compress/decompress
+	 * -j job id
+	 * -k key
+	 * -p new priority
+	 * -a algorihtm //Will support 1 by default for each
+	 * -x Delete original file
+	 * -w overwrite
+	 * -r rename
+	 */
 	struct job_metadata argument;
 	void *dummy = (void *)&argument;
 	//size_t length = 0;
 	int option = 0;
+	/* This flag will be used to in both cases encrypt/decrypt on
+	 * compression/decompression*/
 	int flag_encrypt = 0;
 	int flag_decrypt = 0;
+	int flag_compress = 0;
+	int flag_decompress = 0;
+	int rename = 0;
+	int overwrite = 0;
+	int delete = 0;
+	int algorithm = 0;
+	int key = 0;
+	int type = 0;
+	int job_priority = -1;
+	int error = 0;
+	unsigned int job_id = 0;
 	/**********Variable Declarations end  here**********/
 
 	/*unsigned char* hash = malloc(SHA_DIGEST_LENGTH);*/
@@ -33,29 +67,64 @@ int main(int argc,char* argv[])
 	 * argument.keybuf = malloc(SHA_DIGEST_LENGTH+1);
 	 * memset(argument.keybuf,0,SHA_DIGEST_LENGTH+1);
 	 */
+	argument.job_priority = 5;
+	argument.input_file = NULL;
+	argument.output_file = NULL;
 
-	while ((option = getopt(argc,argv,"p:edh"))!=-1) {
+	while ((option = getopt(argc,argv,"a:t:k:edczj:p:xwrh")) != -1) {
 		switch(option){
-		case 'p':
-			if(strlen(optarg) < 6){
-				errno = EINVAL;
-				fprintf(stderr,"Keylength should be atleast"
-					" 6 characters long. Exiting\n");
-				goto out;
-			}
-			/*
-			 * SHA1((unsigned char*)optarg,strlen(optarg),hash);
-			 */
+		case 'a':
+			algorithm = 1;
+			argument.algorithm = malloc(strlen(optarg)+1);
+			memcpy(argument.algorithm, optarg, strlen(optarg)+1);
+			break;
+		case 't':
+			argument.type = atoi(optarg);
+			type = atoi(optarg);
+			break;
+		case 'k':
+			key = 1;
 			argument.key = malloc(strlen(optarg)+1);
 			memcpy(argument.key, optarg, strlen(optarg)+1);
 			break;
 		case 'e':
 			flag_encrypt = 1;
+			argument.operation = 1;
 			break;
 		case 'd':
 			flag_decrypt = 1;
+			argument.operation = 2;
+			break;
+		case 'c':
+			flag_compress = 1;
+			argument.operation = 1;
+			break;
+		case 'z':
+			flag_decompress = 1;
+			argument.operation = 2;
+			break;
+		case 'j':
+			argument.jobid = atoi(optarg);
+			job_id = atoi(optarg);
+			break;
+		case 'p':
+			argument.job_priority = atoi(optarg);
+			job_priority = atoi(optarg);
+			break;
+		case 'x':
+			delete = 1;
+			argument.delete_f = 1;
+			break;
+		case 'w':
+			overwrite = 1;
+			argument.overwrite = 1;
+			break;
+		case 'r':
+			rename = 1;
+			argument.rename = 1;
 			break;
 		case 'h':
+			/* Correct this usage message */
 			printf("Usage Message: \n\t This command takes 4 "
 				"arguments -p is the Passphrase -e to encrypt "
 			       "or -d to decrypt infile and outfile \n Usage "
@@ -63,29 +132,104 @@ int main(int argc,char* argv[])
 			     " inputfile outputfile\n");
 			return 0;
 		case '?':
-			if (optopt == 'p') {
+			if (optopt == 'p' || optopt == 'a' || optopt == 't' || optopt == 'j' || optopt == 'k') {
 				fprintf(stderr,"Option -%c is missing"
 					       " argument.\n",optopt);
 				goto out;
 			} else {
 				fprintf(stderr,"Unknown Argument, to know "
-					       "usage type ./xcipher -h\n");
+					       "usage type ./xsubmit -h\n");
 				goto out;
 			}
 			break;
 		default: break;
 		}
 	}
+	if (optind < argc) {
+		argument.input_file = malloc(sizeof(argv[optind])+1);
+		memset(argument.input_file, 0, sizeof(argv[optind])+1);
+		memcpy(argument.input_file, argv[optind], strlen(argv[optind]));
+		optind++;
+	}
+	
+	if (optind < argc) {
+		argument.output_file = malloc(sizeof(argv[optind])+1);
+		memset(argument.output_file, 0, sizeof(argv[optind])+1);
+		memcpy(argument.output_file, argv[optind], strlen(argv[optind]));
+	}
+
+	if (type == 0) {
+		printf("Missing type cannot judge which job to run\n");
+		error = -EINVAL;
+		goto out;
+	}
+	switch(type) {
+		case 1:
+			printf("In Option 1\n");
+			/* This is the encrypt decrypt job
+			 * Mandatory Requirements
+			 * -a: Algorithm
+			 * -e/-d : Encrypt or Decrypt
+			 * -p: Optional
+			 * -k : Key
+			 */
+			if ( !algorithm || !(flag_encrypt || flag_decrypt) || !key) {
+				printf("Missing 1 or more mandatory argument");
+				error = -EINVAL;
+				goto out;
+			}
+			if ( flag_compress || flag_decompress || (flag_encrypt && flag_decrypt) || job_id || ((delete && overwrite) || (delete && rename) ||
+						(overwrite && rename))) {
+				printf("One or more wrong argument sent\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (!argument.input_file) {
+				printf("Either input file is missing\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (!argument.output_file && !(rename || overwrite || delete)) {
+				printf("Missing output file name\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (!argument.output_file) {
+				argument.output_file = malloc(strlen(argument.input_file)+1);
+				strcpy(argument.output_file, argument.input_file);
+			}
+			break;
+		case 2:
+			break;
+		case 3:
+			break;
+		case 4:
+			break;
+		case 5:
+			break;
+		case 6:
+			break;
+		case 7:
+			break;
+		default:
+			printf("Invalid Option \n");
+			error = -EINVAL;
+			goto out;
+	}
+//	return 0;
+	/*
 	argument.input_file = malloc(6);
 	argument.output_file = malloc(6);
 	argument.type = 5;
 	argument.job_priority = 5;
 	argument.algorithm = malloc(4096);
+	
 	//argument.job_id = 10;
 	memset(argument.input_file, 0, 6);
 	memset(argument.output_file, 0, 6);
 	memcpy(argument.input_file, "file1", 5);
 	memcpy(argument.output_file, "file2", 5);
+	*/
 	/*
 	 * Rectify 3 with argslen
 	 */
@@ -106,5 +250,5 @@ int main(int argc,char* argv[])
 
 
 out:
-	return 0;
+	return error;
 }

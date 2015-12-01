@@ -52,7 +52,7 @@ static struct task_struct *consumer = NULL;
 static wait_queue_head_t waitqueue_consumer;
 int condition = 0;
 
-unsigned int job_id = 0;
+unsigned int job_id = 1;
 asmlinkage long submitjob(void *arg, int argslen)
 {	
 	int counter = 0;

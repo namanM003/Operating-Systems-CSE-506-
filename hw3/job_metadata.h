@@ -7,6 +7,13 @@ struct job_metadata {
 	 */
 	unsigned int jobid;
 	int job_priority;
+	int rename;
+	int overwrite;
+	int delete_f;
+	int operation;
+	/* Opearation will containg code to encrypt/decrypt ||
+	 * compress/decompress
+	 */
 	char *input_file;
 	char *output_file;
 	char *key;
