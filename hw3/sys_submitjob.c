@@ -358,11 +358,11 @@ static int __init init_sys_submitjob(void)
 		jobs = kmalloc(sizeof(struct job_queue), __GFP_WAIT);
 		INIT_LIST_HEAD(&jobs->job_q);
 //		mutex_init(&lock, NULL, NULL);
-		/*
-		consumer = kthread_create(consume, NULL, "consumer");*/
-		init_waitqueue_head(&waitqueue_consumer);/*
+		
+		consumer = kthread_create(consume, NULL, "consumer");
+		init_waitqueue_head(&waitqueue_consumer);
 		wake_up_process(consumer);
-		*/
+		
 	}
 	return 0;
 }
@@ -375,10 +375,10 @@ static void  __exit exit_sys_submitjob(void)
 	
 	if (sysptr != NULL)
 		sysptr = NULL;
-	/*if (consumer) {
+	if (consumer) {
 		kthread_stop(consumer);
 		printk("Consumer thread stopped succesfully\n");
-	}*/	
+	}	
 	printk("removed sys_submitjob module\n");
 }
 
