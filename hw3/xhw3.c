@@ -185,7 +185,7 @@ int main(int argc,char* argv[])
 				goto out;
 			}
 			if (!argument.input_file) {
-				printf("Either input file is missing\n");
+				printf("Input file is missing\n");
 				error = -EINVAL;
 				goto out;
 			}
@@ -202,12 +202,32 @@ int main(int argc,char* argv[])
 		case 2:
 			printf("In option 2\n");
 			/* This is compress decompress job */
-			if (!algorihtm || !(flag_compress || flag_decompress)) {
+			if (!algorithm || !(flag_compress || flag_decompress)) {
 			       printf("Missing 1 or more mandatory parameter to compress or decompress\n");
 			       error = -EINVAL;
 			       goto out;
 			}
-			if ( job_id || ((delete && overwrite) || (delete && rename) || (overwrite && rename))) {
+			if ( job_id || flag_encrypt || flag_decrypt || ((flag_compress && flag_decompress)) || ((delete && overwrite) ||
+					       (delete && rename) || (overwrite && rename))) {
+				printf("One or more wrong/extra arguments passed\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (!argument.input_file) {
+				printf("Input file name is missing\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (!argument.output_file && !(rename || overwrite || delete)) {
+				printf(" Missing output file name\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (!argument.output_file) {
+				argument.output_file = malloc(strlen(argument.input_file)+1);
+				strcpy(argument.output_file, argument.input_file);
+			}
+
 
 			break;
 		case 3:
