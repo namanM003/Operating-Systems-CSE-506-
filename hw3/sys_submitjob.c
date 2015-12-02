@@ -161,6 +161,17 @@ asmlinkage long submitjob(void *arg, int argslen)
 				kfree(job->job_d.key);
 				goto out_free;
 		}
+		job->job_d.algorithm = kzalloc(strlen_user((
+					(struct job_metadata *)arg)->algorithm)+1,
+					__GFP_WAIT);
+		//Didnt checked for memory allocated or not
+		if (copy_from_user(job->job_d.algorithm, 
+			((struct job_metadata *)arg)->algorithm, 
+			strlen_user(((struct job_metadata *)arg)->algorithm))) {
+			error = -EINVAL;
+			//DO REST OF FREEING
+			goto out_free;
+		}
 		break;
 	case 2:
 		job->job_d.type = 2;
