@@ -2,7 +2,10 @@ obj-m += sys_submitjob.o
 
 INC=/lib/modules/$(shell uname -r)/build/arch/x86/include
 
-all: xsubmitjob xsubmit
+all: xsubmitjob xsubmit netlink
+
+netlink: netlink.c
+		gcc -Wall -Werror netlink.c -o netlink
 
 xsubmit: xhw3.c
 		gcc -Wall -Werror -I$(INC)/generated/uapi -I$(INC)/uapi xhw3.c -lssl -o xsubmit

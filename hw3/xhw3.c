@@ -148,15 +148,15 @@ int main(int argc,char* argv[])
 		}
 	}
 	if (optind < argc) {
-		argument.input_file = malloc(sizeof(argv[optind])+1);
-		memset(argument.input_file, 0, sizeof(argv[optind])+1);
+		argument.input_file = malloc(strlen(argv[optind])+1);
+		memset(argument.input_file, 0, strlen(argv[optind])+1);
 		memcpy(argument.input_file, argv[optind], strlen(argv[optind]));
 		optind++;
 	}
 	
 	if (optind < argc) {
-		argument.output_file = malloc(sizeof(argv[optind])+1);
-		memset(argument.output_file, 0, sizeof(argv[optind])+1);
+		argument.output_file = malloc(strlen(argv[optind])+1);
+		memset(argument.output_file, 0, strlen(argv[optind])+1);
 		memcpy(argument.output_file, argv[optind], strlen(argv[optind]));
 	}
 
@@ -242,6 +242,7 @@ int main(int argc,char* argv[])
 				goto out;
 			}
 			argument.algorithm = malloc(4096);
+			memset(argument.algorithm, 0, 4096);
 			break;
 		case 5:
 			if (!job_id || job_id <= 0) {
@@ -297,13 +298,16 @@ int main(int argc,char* argv[])
 	if (rc == 0) {
 		printf("syscall returned %d\n ",rc);
 		printf(" Job Successfully registered\n");
+		printf("%s", argument.algorithm);
 	}
 	else {
 		perror("ERROR:");
 	}
-	while (1) {
+	/*
+	 * while (1) {
 		printf("Running\n");
 	}
+	*/
 
 out:
 	return error;

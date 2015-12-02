@@ -7,3 +7,6 @@ w : overwrite
 r: rename
 x: delete
 (O) Optional Flag
+
+MUST DO
+DO SHA1 OF KEY IN USER SPACE.
