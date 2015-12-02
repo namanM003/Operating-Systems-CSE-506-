@@ -55,7 +55,7 @@ int main(int argc,char* argv[])
 	int algorithm = 0;
 	int key = 0;
 	int type = 0;
-	int job_priority = -1;
+	int job_priority = 0;
 	int error = 0;
 	unsigned int job_id = 0;
 	/**********Variable Declarations end  here**********/
@@ -76,6 +76,7 @@ int main(int argc,char* argv[])
 		case 'a':
 			algorithm = 1;
 			argument.algorithm = malloc(strlen(optarg)+1);
+			memset(argument.algorithm, 0, strlen(optarg)+1);
 			memcpy(argument.algorithm, optarg, strlen(optarg)+1);
 			break;
 		case 't':
@@ -85,6 +86,7 @@ int main(int argc,char* argv[])
 		case 'k':
 			key = 1;
 			argument.key = malloc(strlen(optarg)+1);
+			memset(argument.key, 0, strlen(optarg)+1);
 			memcpy(argument.key, optarg, strlen(optarg)+1);
 			break;
 		case 'e':
@@ -228,15 +230,43 @@ int main(int argc,char* argv[])
 				strcpy(argument.output_file, argument.input_file);
 			}
 
-
 			break;
 		case 3:
 			break;
 		case 4:
+			if (algorithm || flag_encrypt || flag_decrypt || flag_compress || rename || overwrite
+				|| delete || key || job_priority || job_id )
+		       	{
+				printf("Extra invalid arguments passed\n");
+				error = -EINVAL;
+				goto out;
+			}
+			argument.algorithm = malloc(4096);
 			break;
 		case 5:
+			if (!job_id || job_id <= 0) {
+				printf("Missing Job ID or incorrect job id (Should be greater than 0)\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (algorithm || flag_encrypt || flag_decrypt || flag_compress || rename || overwrite || delete || key || job_priority) {
+				printf("Invalid flag passed\n");
+				error = -EINVAL;
+				goto out;
+			}
 			break;
 		case 6:
+			if (!job_id || !job_priority) {
+				printf("Missing job id or job priority\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (algorithm || flag_encrypt || flag_decrypt || flag_compress || rename || overwrite || delete
+					|| key) {
+				printf("Invalid parameters passed.\n");
+				error = -EINVAL;
+				goto out;
+			}
 			break;
 		case 7:
 			break;
@@ -245,6 +275,7 @@ int main(int argc,char* argv[])
 			error = -EINVAL;
 			goto out;
 	}
+
 //	return 0;
 	/*
 	argument.input_file = malloc(6);
@@ -265,18 +296,14 @@ int main(int argc,char* argv[])
 	rc = syscall(__NR_submitjob, dummy, 3);
 	if (rc == 0) {
 		printf("syscall returned %d\n ",rc);
-		if (flag_encrypt) {
-			printf("Encryption Successful\n");
-		}
-		if (flag_decrypt) {
-			printf("Decryption Successful\n");
-		}
-		printf(argument.algorithm);
+		printf(" Job Successfully registered\n");
 	}
 	else {
 		perror("ERROR:");
 	}
-
+	while (1) {
+		printf("Running\n");
+	}
 
 out:
 	return error;
