@@ -76,6 +76,7 @@ int main(int argc,char* argv[])
 		case 'a':
 			algorithm = 1;
 			argument.algorithm = malloc(strlen(optarg)+1);
+			memset(argument.algorithm, 0, strlen(optarg)+1);
 			memcpy(argument.algorithm, optarg, strlen(optarg)+1);
 			break;
 		case 't':
@@ -85,6 +86,7 @@ int main(int argc,char* argv[])
 		case 'k':
 			key = 1;
 			argument.key = malloc(strlen(optarg)+1);
+			memset(argument.key, 0, strlen(optarg)+1);
 			memcpy(argument.key, optarg, strlen(optarg)+1);
 			break;
 		case 'e':
@@ -273,6 +275,7 @@ int main(int argc,char* argv[])
 			error = -EINVAL;
 			goto out;
 	}
+
 //	return 0;
 	/*
 	argument.input_file = malloc(6);
@@ -298,7 +301,9 @@ int main(int argc,char* argv[])
 	else {
 		perror("ERROR:");
 	}
-
+	while (1) {
+		printf("Running\n");
+	}
 
 out:
 	return error;

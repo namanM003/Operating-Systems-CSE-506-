@@ -13,6 +13,8 @@ struct job_metadata {
 	int operation;
 	/* Opearation will containg code to encrypt/decrypt ||
 	 * compress/decompress
+	 * 1-> Encypt/ Compress
+	 * 2-> Decrypt/ Decompress
 	 */
 	char *input_file;
 	char *output_file;
