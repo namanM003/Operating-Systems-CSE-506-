@@ -98,11 +98,10 @@ asmlinkage long submitjob(void *arg, int argslen)
 	/* Type and their description
 	 * Type 1: Encrypt decrypt the file
 	 * Type 2: Compress/Decompress file
-	 * Type 3 Compute Checksum
-	 * Type 4: Concatenate File
-	 * Type 5: List all available jobs
-	 * Type 6: Delete a job
-	 * Type 7: Change Priority of a job
+	 * Type 3 Compute Checksum/ Hashing
+	 * Type 4: List all available jobs
+	 * Type 5: Delete a job
+	 * Type 6: Change Priority of a job
 	 */
 	switch(job->job_d.type) {
 	
@@ -170,9 +169,6 @@ asmlinkage long submitjob(void *arg, int argslen)
 		job->job_d.type = 3;
 		break;
 	case 4:
-		job->job_d.type = 4;
-		break;
-	case 5:
 		/* Assuming user is sending a buffer equivalent to
 			* PAGE_SIZE, if not than allocate buffer reuired and
 			* modify program as per the requirement
@@ -200,12 +196,12 @@ asmlinkage long submitjob(void *arg, int argslen)
 		//error = 0;
 		goto out;	
 		break;
-	case 6:
+	case 5:
 		/* Code to remove a job from the list */
 		error = 0;
 		goto out;
 		break;
-	case 7:
+	case 6:
 		/* Code to change priority of a job*/
 		error = 0;
 		goto out;
