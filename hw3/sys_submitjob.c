@@ -264,6 +264,12 @@ static int kargs_valid(const struct job_metadata data)
 	struct file *ifilp = NULL;
 	struct file *ofilp = NULL;
 
+	if (!((data.operation == 1) || (data.operation == 2))) {
+		printk("xcrypt: invalid operation\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
+
 	if (!data.input_file || !*data.input_file) {
 		printk("xcrypt: invalid input file path\n");
 		ret = -EINVAL;
@@ -307,6 +313,7 @@ static int kargs_valid(const struct job_metadata data)
 	}
 
 	for (i = 0; i < cipher_len; ++i) {
+		printk("Cipher: %s\n", ciphers[i]);
 		if (strcmp(ciphers[i], data.algorithm) == 0) {
 			valid_cipher = 1;
 		}
@@ -701,6 +708,8 @@ static int xcrypt(struct job_metadata data)
 					goto out;
 			}
 
+			///////////////////// My PRINT /////////////
+			printk("Data Enc: |%s|\n", buf);
 			w_bytes = xcrypt_write_file(data.output_file, buf,
 						    r_bytes, w_offset);
 			if (w_bytes < 0) {

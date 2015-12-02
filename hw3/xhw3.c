@@ -148,15 +148,15 @@ int main(int argc,char* argv[])
 		}
 	}
 	if (optind < argc) {
-		argument.input_file = malloc(sizeof(argv[optind])+1);
-		memset(argument.input_file, 0, sizeof(argv[optind])+1);
+		argument.input_file = malloc(strlen(argv[optind])+1);
+		memset(argument.input_file, 0, strlen(argv[optind])+1);
 		memcpy(argument.input_file, argv[optind], strlen(argv[optind]));
 		optind++;
 	}
 	
 	if (optind < argc) {
-		argument.output_file = malloc(sizeof(argv[optind])+1);
-		memset(argument.output_file, 0, sizeof(argv[optind])+1);
+		argument.output_file = malloc(strlen(argv[optind])+1);
+		memset(argument.output_file, 0, strlen(argv[optind])+1);
 		memcpy(argument.output_file, argv[optind], strlen(argv[optind]));
 	}
 
