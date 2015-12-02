@@ -180,7 +180,7 @@ int main(int argc,char* argv[])
 			}
 			if ( flag_compress || flag_decompress || (flag_encrypt && flag_decrypt) || job_id || ((delete && overwrite) || (delete && rename) ||
 						(overwrite && rename))) {
-				printf("One or more wrong argument sent\n");
+				printf("One or more wrong/extra argument sent\n");
 				error = -EINVAL;
 				goto out;
 			}
@@ -200,6 +200,15 @@ int main(int argc,char* argv[])
 			}
 			break;
 		case 2:
+			printf("In option 2\n");
+			/* This is compress decompress job */
+			if (!algorihtm || !(flag_compress || flag_decompress)) {
+			       printf("Missing 1 or more mandatory parameter to compress or decompress\n");
+			       error = -EINVAL;
+			       goto out;
+			}
+			if ( job_id || ((delete && overwrite) || (delete && rename) || (overwrite && rename))) {
+
 			break;
 		case 3:
 			break;
