@@ -348,8 +348,9 @@ static int xcrypt_encrypt(char *src, char *dst, const unsigned char *key,
 	if (keylen < min) {
 		printk("sys_xcrypt: keylen at least %d bits for %s\n",
 		       min * 8, alg);
-		rc = -EINVAL;
-		goto out;
+		///////////////// CHNAGE THIS LATER ///////////////////
+		//rc = -EINVAL;
+		//goto out;
 	}
 
 	rc = crypto_blkcipher_setkey(tfm, key, min);
@@ -404,7 +405,8 @@ static int xcrypt_decrypt(char *src, char *dst, const unsigned char *key,
 	if (keylen < min) {
 		printk("sys_xcrypt: keylen at least %d bits for %s\n",
 		       min * 8, alg);
-		goto out;
+		///////////////// CHNAGE THIS LATER ///////////////////
+		//goto out;
 	}
 
 	rc = crypto_blkcipher_setkey(tfm, key, min);
@@ -588,11 +590,9 @@ static int xcrypt(struct job_metadata data)
 	crypto_free_hash(tfm);
 	////////////////////////////////////////////////////////////////////////////////////////////////////////	
 	memcpy(key,hashkey,16);
-	printk("Before Keylen\n");
 	//keylen = sizeof(key) / sizeof(key[0]);
 	keylen = sizeof(key);
 	printk("KeyLen: %d\n", keylen);
-	printk("After Keylen\n");
 
 	if (data.operation == 1) {
 		ret = xcrypt_encrypt(key, key_buf, key,
@@ -639,6 +639,8 @@ static int xcrypt(struct job_metadata data)
 		memset(buf, 0, count);
 		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
 
+		///////////////////// My PRINT /////////////
+		printk("Data Read: |%s|\n", buf);
 		if (r_bytes < 0) {
 			ret  = -EIO;
 			printk("xcrypt: error in reading file.\n");
@@ -659,6 +661,10 @@ static int xcrypt(struct job_metadata data)
 				if (ret < 0)
 					goto out;
 			}
+
+
+			///////////////////// My PRINT /////////////
+			printk("Data Enc: |%s|\n", buf);
 
 			w_bytes = xcrypt_write_file(data.output_file, buf, count,
 						    w_offset);
@@ -696,6 +702,7 @@ static int xcrypt(struct job_metadata data)
 		r_offset = r_offset + r_bytes;
 		w_offset = w_offset + w_bytes;
 	} while (r_bytes == count);
+	printk("Done\n");
 
 out:
 	if (buf)
