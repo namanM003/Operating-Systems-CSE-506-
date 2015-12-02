@@ -1,3 +1,4 @@
+#include <asm/page.h>
 #include <linux/linkage.h>
 #include <linux/moduleloader.h>
 #include <linux/uaccess.h>
@@ -245,9 +246,476 @@ out:
 }
 
 
-static int xcrypt(struct job_metadata data) {
+static int kargs_valid(const struct job_metadata data)
+{
+	int ret = 0;
+	int i = 0;
+	char *ciphers[] = { "aes", "blowfish", "des" };
+	int valid_cipher = 0;
+	int cipher_len = sizeof(ciphers) / sizeof(ciphers[0]);
+
+	struct file *ifilp = NULL;
+	struct file *ofilp = NULL;
+
+	if (!data.input_file || !*data.input_file) {
+		printk("xcrypt: invalid input file path\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
+
+	if (!data.output_file || !*data.output_file) {
+		printk("xcrypt: invalid output file path\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
+
+	ifilp = filp_open(data.input_file, O_RDONLY, 0);
+	if (!ifilp || IS_ERR(ifilp)) {
+		printk("xcrypt: cannot open input file %d\n",
+		       (int)PTR_ERR(ifilp));
+		ret = -ENOENT;
+		goto out_valid;
+	}
+
+	if (!ifilp->f_op->read) {
+		printk("xcrypt: cannot read input file %d\n",
+		       (int)PTR_ERR(ifilp));
+		ret = -EIO;
+		goto out_valid;
+	}
+
+	ofilp = filp_open(data.output_file, O_RDWR | O_TRUNC, 0);
+	if (ofilp && !IS_ERR(ofilp)) {
+		if (ifilp->f_inode == ofilp->f_inode) {
+			printk("xcrypt: outfile is same as the infile\n");
+			ret = -EPERM;
+			goto out_valid;
+		}
+		if (!ofilp->f_op->write) {
+			printk("xcrypt: cannot write output file %d\n",
+			       (int)PTR_ERR(ofilp));
+			ret = -EIO;
+			goto out_valid;
+		}
+	}
+
+	for (i = 0; i < cipher_len; ++i) {
+		if (strcmp(ciphers[i], data.algorithm) == 0) {
+			valid_cipher = 1;
+		}
+	}
+
+	if (valid_cipher != 1) {
+		printk("xcrypt: cipher invalid or not supported.\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
+
+out_valid:
+	if (ifilp && !IS_ERR(ifilp))
+		filp_close(ifilp, NULL);
+
+	if (ofilp && !IS_ERR(ofilp))
+		filp_close(ofilp, NULL);
+
+	return ret;
+}
+
+static inline
+unsigned int ll_crypto_tfm_alg_min_keysize(struct crypto_blkcipher *tfm)
+{
+	return crypto_blkcipher_tfm(tfm)->__crt_alg->cra_blkcipher.min_keysize;
+}
+
+static int xcrypt_encrypt(char *src, char *dst, const unsigned char *key,
+			  unsigned int buflen, int keylen, const char *algo)
+{
+	struct crypto_blkcipher *tfm;
+	struct scatterlist sdst;
+	struct scatterlist ssrc;
+	struct blkcipher_desc desc;
+	unsigned int min;
+	int rc = 0;
+	char alg[CRYPTO_MAX_ALG_NAME + 1];
+	strcpy(alg, algo);
+
+	/* passing algorithm in a variable instead of a constant string keeps gcc
+	 * 4.3.2 happy */
+	tfm = crypto_alloc_blkcipher(alg, 0, 0);
+	if (IS_ERR(tfm)) {
+		printk("sys_xcrypt: failed to allocate cipher handle for %s\n",
+		       alg);
+		return -EINVAL;
+	}
+
+	min = ll_crypto_tfm_alg_min_keysize(tfm);
+	if (keylen < min) {
+		printk("sys_xcrypt: keylen at least %d bits for %s\n",
+		       min * 8, alg);
+		rc = -EINVAL;
+		goto out;
+	}
+
+	rc = crypto_blkcipher_setkey(tfm, key, min);
+	if (rc) {
+		printk("sys_xcrypt: failed to set key for %s\n", alg);
+		goto out;
+	}
+
+	sg_init_table(&ssrc, 1);
+	sg_set_buf(&ssrc, (const void *)src, buflen);
+
+	sg_init_table(&sdst, 1);
+	sg_set_buf(&sdst, (const void *)dst, buflen);
+
+	desc.tfm   = tfm;
+	desc.info  = NULL;
+	desc.flags = 0;
+
+	rc = crypto_blkcipher_encrypt(&desc, &sdst, &ssrc, buflen);
+	if (rc) {
+		printk("sys_xcrypt: failed to encrypt for %s\n", alg);
+		goto out;
+	}
+
+out:
+	crypto_free_blkcipher(tfm);
+	return rc;
+}
+
+static int xcrypt_decrypt(char *src, char *dst, const unsigned char *key,
+			  unsigned int buflen, int keylen, const char *algo)
+{
+	struct crypto_blkcipher *tfm;
+	struct scatterlist ssrc;
+	struct scatterlist sdst;
+	struct blkcipher_desc desc;
+	unsigned int min;
+	int rc = 0;
+	char alg[CRYPTO_MAX_ALG_NAME + 1];
+	strcpy(alg, algo);
+
+	/* passing algorithm in a variable instead of a constant string keeps
+	 * gcc 4.3.2 happy */
+	tfm = crypto_alloc_blkcipher(alg, 0, 0);
+	if (IS_ERR(tfm)) {
+		printk("sys_xcrypt: failed to allocate cipher handle for %s\n",
+		       alg);
+		return -EINVAL;
+	}
+
+	min = ll_crypto_tfm_alg_min_keysize(tfm);
+	if (keylen < min) {
+		printk("sys_xcrypt: keylen at least %d bits for %s\n",
+		       min * 8, alg);
+		goto out;
+	}
+
+	rc = crypto_blkcipher_setkey(tfm, key, min);
+	if (rc) {
+		printk("sys_xcrypt: failed to set key for %s\n", alg);
+		goto out;
+	}
+
+	sg_init_table(&ssrc, 1);
+	sg_set_buf(&ssrc, (const void *)src, buflen);
+
+	sg_init_table(&sdst, 1);
+	sg_set_buf(&sdst, (const void *)dst, buflen);
+
+	desc.tfm   = tfm;
+	desc.info  = NULL;
+	desc.flags = 0;
+
+	rc = crypto_blkcipher_decrypt(&desc, &sdst, &ssrc, buflen);
+	if (rc) {
+		printk("sys_xcrypt: failed to decrypt for %s\n", alg);
+		goto out;
+	}
+
+out:
+	crypto_free_blkcipher(tfm);
+	return rc;
+}
+
+/*
+ * Read "count" bytes from "filename" into "buf".
+ * "buf" is in kernel space.
+ */
+static int
+xcrypt_read_file(const char *filename, char *buf,
+		 unsigned long count, loff_t offset)
+{
+	struct file *filp;
+	mm_segment_t oldfs;
+	loff_t pos = offset;
+	int bytes;
+
+	filp = filp_open(filename, O_RDONLY, 0);
+
+	if (!filp || IS_ERR(filp)) {
+		printk("sys_xcrypt: xcrypt_read_file err %d\n",
+		       (int)PTR_ERR(filp));
+		return -1;
+	}
+
+	if (!filp->f_op->read)
+		return -2;  /* file(system) doesn't allow reads */
+
+	/* now read count bytes from offset "offset" */
+	oldfs = get_fs();
+	set_fs(KERNEL_DS);
+	/* The cast to a user pointer is valid due to the set_fs() */
+	bytes = vfs_read(filp, (void __user *)buf, count, &pos);
+	set_fs(oldfs);
+
+	/* close the file */
+	filp_close(filp, NULL);
+
+	return bytes;
+}
+
+/*
+ * Write "count" bytes from "buf" to "filename".
+ * "buf" is in kernel space.
+ */
+static int
+xcrypt_write_file(const char *filename, void *buf,
+		  unsigned long count, loff_t offset)
+{
+	struct file *filp;
+	mm_segment_t oldfs;
+	loff_t pos = offset;
+	int bytes;
+
+	filp = filp_open(filename, O_CREAT | O_RDWR, 0644);
+
+	if (!filp || IS_ERR(filp)) {
+		printk("sys_xcrypt: xcrypt_write_file err %d\n",
+		       (int)PTR_ERR(filp));
+		return -1;
+	}
+
+	if (!filp->f_op->write)
+		return -2;  /* file(system) doesn't allow writes */
+
+	/* now read count bytes from offset "offset" */
+	oldfs = get_fs();
+	set_fs(KERNEL_DS);
+	/* The cast to a user pointer is valid due to the set_fs() */
+	bytes = vfs_write(filp, (void __user *)buf, count, &pos);
+	set_fs(oldfs);
+
+	/* close the file */
+	filp_close(filp, NULL);
+
+	return bytes;
+}
+
+static int xcrypt(struct job_metadata data)
+{
+	int ret = 0;
+	unsigned long count = PAGE_SIZE;
+	int r_bytes = 0;
+	int w_bytes = 0;
+	char *cipher = NULL;
+	char *buf = NULL;
+	char *key_buf = NULL;
+	loff_t r_offset = 0;
+	loff_t w_offset = 0;
+	int keylen;
+	unsigned char *hashkey;
+	struct scatterlist sg_hash;
+	struct crypto_hash *tfm = NULL;
+	struct hash_desc desc_hash;
+	struct blkcipher_desc desc;
+	unsigned char* key = NULL;
+
 	printk("In Encrypt Function\n");
-	return 1;
+	printk("Key: %s\n", data.key);
+	printk("Algo: %s\n", data.algorithm);
+	printk("Inp: %s\n", data.input_file);
+	printk("Out: %s\n", data.output_file);
+
+	ret = kargs_valid(data);
+	if (ret < 0) {
+		printk("xcrypt: invalid arguments\n");
+		goto out;
+	}
+
+	cipher = kmalloc(sizeof(char) * 16, GFP_KERNEL);
+	if (!cipher) {
+		printk("xcrypt: kmalloc couldn't allocate memory\n");
+		ret =  -ENOMEM;
+		goto out;
+	}
+
+	strcpy(cipher, "ctr(");
+	strcat(cipher, data.algorithm);
+	strcat(cipher, ")");
+	printk(KERN_INFO "xcrypt: using %s cipher\n", cipher);
+
+	buf = kmalloc(count, GFP_KERNEL);
+	if (!buf) {
+		printk("xcrypt: kmalloc couldn't allocate memory\n");
+		ret  = -ENOMEM;
+		goto out;
+	}
+
+	key_buf = kmalloc(sizeof(char) * keylen, GFP_KERNEL);
+	if (!key_buf) {
+		printk("xcrypt: kmalloc couldn't allocate memory\n");
+		ret =  -ENOMEM;
+		goto out;
+	}
+
+	key = kmalloc(16,__GFP_WAIT);
+	if(key==NULL){
+		ret = -ENOMEM;
+		goto out;
+	}
+	/////////////////////////////CODE TO HASH KEY IN KERNEL//////////////////////////////////////////////////
+	hashkey = kmalloc(20, __GFP_WAIT);
+	if(hashkey == NULL){
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	tfm = crypto_alloc_hash("sha1",0,CRYPTO_ALG_ASYNC);
+	desc_hash.tfm = tfm;
+	desc.flags = 0;
+	crypto_hash_init(&desc_hash);
+
+	sg_init_one(&sg_hash,data.key,strlen(data.key));
+	crypto_hash_update(&desc_hash,&sg_hash,strlen(data.key));
+	crypto_hash_final(&desc_hash,hashkey);
+	crypto_free_hash(tfm);
+	////////////////////////////////////////////////////////////////////////////////////////////////////////	
+	memcpy(key,hashkey,16);
+	printk("Before Keylen\n");
+	//keylen = sizeof(key) / sizeof(key[0]);
+	keylen = sizeof(key);
+	printk("KeyLen: %d\n", keylen);
+	printk("After Keylen\n");
+
+	if (data.operation == 1) {
+		ret = xcrypt_encrypt(key, key_buf, key,
+				     keylen, keylen,
+				     cipher);
+		if (ret < 0)
+			goto out;
+
+		w_bytes = xcrypt_write_file(data.output_file, key_buf,
+					    keylen, w_offset);
+		if (w_bytes < 0) {
+			printk("xcrypt: error in writing file.\n");
+			ret = -EIO;
+			goto out;
+		}
+		w_offset = w_offset + w_bytes;
+	} else if (data.operation == 2) {
+		r_bytes = xcrypt_read_file(data.input_file, key_buf,
+					   keylen, r_offset);
+
+		if (r_bytes < 0) {
+			printk("xcrypt: error in reading file.\n");
+			ret  = -EIO;
+			goto out;
+		}
+		r_offset = r_offset + r_bytes;
+
+		ret = xcrypt_decrypt(key_buf, key_buf, key,
+				     keylen, keylen,
+				     cipher);
+		if (ret < 0) {
+			goto out;
+		}
+
+		if (memcmp(key, key_buf, keylen) != 0) {
+			printk(KERN_INFO "xcrypt: wrong key!\n");
+			ret  = -EACCES;
+			goto out;
+		}
+		printk(KERN_INFO "xcrypt: correct key!\n");
+	}
+
+	do {
+		memset(buf, 0, count);
+		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
+
+		if (r_bytes < 0) {
+			ret  = -EIO;
+			printk("xcrypt: error in reading file.\n");
+			goto out;
+		}
+
+		if (r_bytes == count) {
+			if (data.operation == 1) {
+				ret = xcrypt_encrypt(buf, buf, key,
+						     count, keylen,
+						     cipher);
+				if (ret < 0)
+					goto out;
+			} else if (data.operation == 2) {
+				ret = xcrypt_decrypt(buf, buf, key,
+						     count, keylen,
+						     cipher);
+				if (ret < 0)
+					goto out;
+			}
+
+			w_bytes = xcrypt_write_file(data.output_file, buf, count,
+						    w_offset);
+			if (w_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in writing file.\n");
+				goto out;
+			}
+		}
+
+		if (r_bytes < count) {
+			if (data.operation == 1) {
+				ret = xcrypt_encrypt(buf, buf, key,
+						     r_bytes, keylen,
+						     cipher);
+				if (ret < 0)
+					goto out;
+			} else if (data.operation == 2) {
+				ret = xcrypt_decrypt(buf, buf, key,
+						     r_bytes, keylen,
+						     cipher);
+				if (ret < 0)
+					goto out;
+			}
+
+			w_bytes = xcrypt_write_file(data.output_file, buf,
+						    r_bytes, w_offset);
+			if (w_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in writing file.\n");
+				goto out;
+			}
+		}
+
+		r_offset = r_offset + r_bytes;
+		w_offset = w_offset + w_bytes;
+	} while (r_bytes == count);
+
+out:
+	if (buf)
+		kfree(buf);
+
+	if (key)
+		kfree(key);
+
+	if (hashkey)
+		kfree(hashkey);
+
+	if (key_buf)
+		kfree(key_buf);
+
+
+	return ret;
 }
 
 
