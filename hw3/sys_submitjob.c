@@ -279,7 +279,17 @@ static int kargs_valid(const struct job_metadata data)
 		goto out_valid;
 	}
 
-	/////////////////////////// VALIDATE DELETE RENAME AND OVERWRITE
+	if ((data.rename && data.overwrite) || (data.rename && data.delete_f)) {
+		printk("xcrypt: invalid options\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
+
+	if (data.delete_f && data.overwrite) {
+		printk("xcrypt: invalid options\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
 
 	if (!data.output_file || !*data.output_file) {
 		printk("xcrypt: invalid output file path\n");
@@ -340,6 +350,12 @@ out_valid:
 	return ret;
 }
 
+static inline
+unsigned int ll_crypto_tfm_alg_min_keysize(struct crypto_blkcipher *tfm)
+{
+	return crypto_blkcipher_tfm(tfm)->__crt_alg->cra_blkcipher.min_keysize;
+}
+
 static int xcrypt_encrypt(char *src, char *dst, const unsigned char *key,
 			  unsigned int buflen, int keylen, const char *algo)
 {
@@ -361,6 +377,7 @@ static int xcrypt_encrypt(char *src, char *dst, const unsigned char *key,
 		return -EINVAL;
 	}
 
+	min = ll_crypto_tfm_alg_min_keysize(tfm);
 	rc = crypto_blkcipher_setkey(tfm, key, min);
 	if (rc) {
 		printk("sys_xcrypt: failed to set key for %s\n", alg);
@@ -409,6 +426,7 @@ static int xcrypt_decrypt(char *src, char *dst, const unsigned char *key,
 		return -EINVAL;
 	}
 
+	min = ll_crypto_tfm_alg_min_keysize(tfm);
 	rc = crypto_blkcipher_setkey(tfm, key, min);
 	if (rc) {
 		printk("sys_xcrypt: failed to set key for %s\n", alg);
@@ -543,6 +561,7 @@ static int xcrypt(struct job_metadata data)
 	char *msg = "Success";
 	char *unsuc = "Unsuccessfull";
 	int res;
+	/****Netlink variables end***/
 	ret = kargs_valid(data);
 	if (ret < 0) {
 		printk("xcrypt: invalid arguments\n");
