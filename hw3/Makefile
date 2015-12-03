@@ -5,7 +5,7 @@ INC=/lib/modules/$(shell uname -r)/build/arch/x86/include
 all: xsubmitjob netlink xsubmit
 
 netlink: netlink.c
-		gcc -Wall -Werror -c netlink.c
+		gcc -Wall -Werror -pthread -c netlink.c
 xsubmit: xhw3.c
 		gcc -Wall -Werror -I$(INC)/generated/uapi -I$(INC)/uapi netlink.o xhw3.c -lssl -pthread -o xsubmit
 
