@@ -1080,6 +1080,132 @@ out:
 	return 0;
 }
 
+static int xompress_compress(char *src, char *dst, unsigned int buflen,
+			     const char *algo)
+{
+	int rc = 0;
+	struct crypto_comp *tfm = crypto_alloc_comp("lzo", 0, CRYPTO_ALG_ASYNC);
+	unsigned int finalLength = 0;
+	rc = crypto_comp_compress(tfm, src, strlen(src), dst, &finalLength);
+	printk(" return code from compression:%d, final length :%d", rc, finalLength);
+	return 0;
+}
+
+static int xompress(struct job_metadata data)
+{
+	int ret = 0;
+	unsigned long count = PAGE_SIZE;
+	int r_bytes = 0;
+	int w_bytes = 0;
+	char *buf = NULL;
+	char *algorithm = NULL;
+	loff_t r_offset = 0;
+	loff_t w_offset = 0;
+
+	ret = kargs_valid(data);
+	if (ret < 0) {
+		printk("xcrypt: invalid arguments\n");
+		goto out;
+	}
+
+	algorithm = kmalloc(sizeof(char) * 16, GFP_KERNEL);
+	if (!algorithm) {
+		printk("xcrypt: kmalloc couldn't allocate memory\n");
+		ret =  -ENOMEM;
+		goto out;
+	}
+
+	strcpy(algorithm, "lzo");
+
+	buf = kmalloc(count, GFP_KERNEL);
+	if (!buf) {
+		printk("xcrypt: kmalloc couldn't allocate memory\n");
+		ret  = -ENOMEM;
+		goto out;
+	}
+
+	do {
+		memset(buf, 0, count);
+		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
+
+		///////////////////// My PRINT /////////////
+		printk("Data Read: |%s|\n", buf);
+		if (r_bytes < 0) {
+			ret  = -EIO;
+			printk("xcrypt: error in reading file.\n");
+			goto out;
+		}
+
+		if (r_bytes == count) {
+			printk("CHECK THIS LATER!!!!!!\n");
+			/*
+			if (data.operation == 1) {
+				ret = xcrypt_encrypt(buf, buf, key,
+						     count, keylen,
+						     cipher);
+				if (ret < 0)
+					goto out;
+			} else if (data.operation == 2) {
+				ret = xcrypt_decrypt(buf, buf, key,
+						     count, keylen,
+						     cipher);
+				if (ret < 0)
+					goto out;
+			}
+
+
+			///////////////////// My PRINT /////////////
+			printk("Data Enc: |%s|\n", buf);
+
+			w_bytes = xcrypt_write_file(data.output_file, buf, count,
+						    w_offset);
+			if (w_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in writing file.\n");
+				goto out;
+			}
+			*/
+		}
+
+		if (r_bytes < count) {
+			if (data.operation == 1) {
+				ret = xompress_compress(buf, buf, r_bytes,
+							algorithm);
+				if (ret < 0)
+					goto out;
+			} else if (data.operation == 2) {
+				/*
+				ret = xompress_decompress(buf, buf, r_bytes,
+							  algorithm);
+				if (ret < 0)
+					goto out;
+				*/
+			}
+
+			///////////////////// My PRINT /////////////
+			printk("Data Enc: |%s|\n", buf);
+			w_bytes = xcrypt_write_file(data.output_file, buf,
+						    r_bytes, w_offset);
+			if (w_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in writing file.\n");
+				goto out;
+			}
+		}
+
+		r_offset = r_offset + r_bytes;
+		w_offset = w_offset + w_bytes;
+	} while (r_bytes == count);
+	printk("Done\n");
+
+out:
+	if (buf)
+		kfree(buf);
+
+	printk("In Xompress\n");
+	return 1;
+}
+
 static int consume(void *data)
 {
 	struct list_head *pos = NULL, *q = NULL;
