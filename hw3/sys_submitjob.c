@@ -565,6 +565,12 @@ static int xcrypt(struct job_metadata data)
 	struct blkcipher_desc desc;
 	unsigned char* key = NULL;
 
+	char *temp_file = NULL;
+	struct file *inp_filp;
+	struct file *ofilp;
+	struct file *tmp_file;
+	mm_segment_t oldfs;
+
 	/*********************NETLINK PART*************/
 	struct nlmsghdr *nlh;
 	int pid;
@@ -576,6 +582,7 @@ static int xcrypt(struct job_metadata data)
 	//struct sock *nl_sk = NULL;
 	/**********************NETLINK Variables end************************/
 
+	printk("MYPID: %d\n", data.pid);
 	ret = kargs_valid(data);
 	if (ret < 0) {
 		printk("xcrypt: invalid arguments\n");
@@ -635,16 +642,331 @@ static int xcrypt(struct job_metadata data)
 	keylen = sizeof(key);
 	printk("KeyLen: %d\n", keylen);
 
-	if (data.rename == 1) {
+	if ((data.rename == 1) || (data.delete_f == 1)) {
 		printk("In Rename\n");
-	}
-	else if (data.overwrite == 1) {
+		if (data.operation == 1) {
+			ret = xcrypt_encrypt(key, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0)
+				goto out;
+
+			w_bytes = xcrypt_write_file(data.output_file, key_buf,
+						keylen, w_offset);
+			if (w_bytes < 0) {
+				printk("xcrypt: error in writing file.\n");
+				ret = -EIO;
+				goto out;
+			}
+			w_offset = w_offset + w_bytes;
+		} else if (data.operation == 2) {
+			r_bytes = xcrypt_read_file(data.input_file, key_buf,
+						keylen, r_offset);
+
+			if (r_bytes < 0) {
+				printk("xcrypt: error in reading file.\n");
+				ret  = -EIO;
+				goto out;
+			}
+			r_offset = r_offset + r_bytes;
+
+			ret = xcrypt_decrypt(key_buf, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0) {
+				goto out;
+			}
+
+			if (memcmp(key, key_buf, keylen) != 0) {
+				printk(KERN_INFO "xcrypt: wrong key!\n");
+				ret  = -EACCES;
+				goto out;
+			}
+			printk(KERN_INFO "xcrypt: correct key!\n");
+		}
+
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
+
+			///////////////////// My PRINT /////////////
+			printk("Data Read: |%s|\n", buf);
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+
+				///////////////////// My PRINT /////////////
+				printk("Data Enc: |%s|\n", buf);
+
+				w_bytes = xcrypt_write_file(data.output_file, buf, count,
+							w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				///////////////////// My PRINT /////////////
+				printk("Data Enc: |%s|\n", buf);
+				w_bytes = xcrypt_write_file(data.output_file, buf,
+							r_bytes, w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
+		printk("Done Writing\n");
+		/////////// DELETE INPUT FILE /////////////
+		inp_filp = filp_open(data.input_file, O_RDWR, 0644);
+
+		if (!inp_filp || IS_ERR(inp_filp)) {
+			printk("xcrypt: xcrypt delete file err %d\n",
+			(int)PTR_ERR(inp_filp));
+			return -1;
+		}
+
+		if (!inp_filp->f_op->write)
+			return -2;  /* file(system) doesn't allow writes */
+
+		oldfs = get_fs();
+		set_fs(KERNEL_DS);
+		mutex_lock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		vfs_unlink(inp_filp->f_path.dentry->d_parent->d_inode, inp_filp->f_path.dentry, NULL);
+		mutex_unlock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		set_fs(oldfs);
+		filp_close(inp_filp, NULL);
+		printk("Done Deleting\n");
+	} else if (data.overwrite == 1) {
 		printk("In Overwrite\n");
-	}
-	else if (data.delete_f == 1) {
-		printk("In Delete\n");
-	}
-	else {
+		//create temp file
+		temp_file = kmalloc(strlen(data.input_file)+5, __GFP_WAIT);
+		memset(temp_file, 0, strlen(data.input_file)+5);
+		strcpy(temp_file, data.input_file);
+		strcat(temp_file, ".tmp");
+		tmp_file = filp_open(temp_file, O_WRONLY | O_CREAT, S_IWUSR);
+		if(IS_ERR(tmp_file)){
+			ret = -EFAULT;
+			goto out;
+		}
+		filp_close(tmp_file, NULL);
+		//read/write from input to tmp
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
+
+			///////////////////// My PRINT /////////////
+			printk("Data Read: |%s|\n", buf);
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				w_bytes = xcrypt_write_file(temp_file, buf, count,
+							w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				w_bytes = xcrypt_write_file(temp_file, buf,
+							r_bytes, w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
+		//clear input
+		ofilp = filp_open(data.input_file, O_RDWR | O_TRUNC, 0);
+		if(IS_ERR(ofilp)){
+			ret = -EFAULT;
+			goto out;
+		}
+		filp_close(ofilp, NULL);
+		//encrypt from tmp to input
+		if (data.operation == 1) {
+			ret = xcrypt_encrypt(key, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0)
+				goto out;
+
+			w_bytes = xcrypt_write_file(data.input_file, key_buf,
+						keylen, w_offset);
+			if (w_bytes < 0) {
+				printk("xcrypt: error in writing file.\n");
+				ret = -EIO;
+				goto out;
+			}
+			w_offset = w_offset + w_bytes;
+		} else if (data.operation == 2) {
+			r_bytes = xcrypt_read_file(temp_file, key_buf,
+						keylen, r_offset);
+
+			if (r_bytes < 0) {
+				printk("xcrypt: error in reading file.\n");
+				ret  = -EIO;
+				goto out;
+			}
+			r_offset = r_offset + r_bytes;
+
+			ret = xcrypt_decrypt(key_buf, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0) {
+				goto out;
+			}
+
+			if (memcmp(key, key_buf, keylen) != 0) {
+				printk(KERN_INFO "xcrypt: wrong key!\n");
+				ret  = -EACCES;
+				goto out;
+			}
+			printk(KERN_INFO "xcrypt: correct key!\n");
+		}
+
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(temp_file, buf, count, r_offset);
+
+			///////////////////// My PRINT /////////////
+			printk("Data Read: |%s|\n", buf);
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+
+				///////////////////// My PRINT /////////////
+				printk("Data Enc: |%s|\n", buf);
+
+				w_bytes = xcrypt_write_file(data.input_file, buf, count,
+							w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				///////////////////// My PRINT /////////////
+				printk("Data Enc: |%s|\n", buf);
+				w_bytes = xcrypt_write_file(data.input_file, buf,
+							r_bytes, w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
+		//delete tmp
+		/////////// DELETE INPUT FILE /////////////
+		inp_filp = filp_open(temp_file, O_RDWR, 0644);
+
+		if (!inp_filp || IS_ERR(inp_filp)) {
+			printk("xcrypt: xcrypt delete file err %d\n",
+			(int)PTR_ERR(inp_filp));
+			return -1;
+		}
+
+		if (!inp_filp->f_op->write)
+			return -2;
+
+		oldfs = get_fs();
+		set_fs(KERNEL_DS);
+		mutex_lock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		vfs_unlink(inp_filp->f_path.dentry->d_parent->d_inode, inp_filp->f_path.dentry, NULL);
+		mutex_unlock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		set_fs(oldfs);
+		filp_close(inp_filp, NULL);
+		printk("Done Deleting\n");
+		/*
+		*/
+		printk("Done Overwrite\n");
+	} else {
 		if (data.operation == 1) {
 			ret = xcrypt_encrypt(key, key_buf, key,
 					keylen, keylen,
