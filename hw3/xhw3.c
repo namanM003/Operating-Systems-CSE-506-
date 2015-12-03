@@ -8,6 +8,7 @@
 #include <openssl/sha.h>
 #include <sys/stat.h>
 #include "job_metadata.h"
+#include "netlink.h"
 #ifndef __NR_submitjob
 #error submitjob system call not defined
 #endif
@@ -15,6 +16,7 @@
 int main(int argc,char* argv[])
 {
 	int rc;
+	int pid;
 	/****Variable Declarations start here*********/
 	/* Job Defination Flags
 	 * 1 to Encrypt/Decrypt
@@ -58,6 +60,7 @@ int main(int argc,char* argv[])
 	int job_priority = 0;
 	int error = 0;
 	unsigned int job_id = 0;
+	char *realpath_f = NULL;
 	/**********Variable Declarations end  here**********/
 
 	/*unsigned char* hash = malloc(SHA_DIGEST_LENGTH);*/
@@ -148,16 +151,29 @@ int main(int argc,char* argv[])
 		}
 	}
 	if (optind < argc) {
-		argument.input_file = malloc(strlen(argv[optind])+1);
-		memset(argument.input_file, 0, strlen(argv[optind])+1);
-		memcpy(argument.input_file, argv[optind], strlen(argv[optind]));
+		realpath_f = realpath(argv[optind], NULL);
 		optind++;
+		if (realpath_f != NULL) {
+			argument.input_file = malloc(strlen(realpath_f)+1);
+			memset(argument.input_file, 0, strlen(realpath_f)+1);
+			memcpy(argument.input_file, realpath_f, strlen(realpath_f));
+			free(realpath_f);
+		}
+		realpath_f = NULL;
+		printf("%s\n",argument.input_file);
 	}
 	
 	if (optind < argc) {
-		argument.output_file = malloc(strlen(argv[optind])+1);
-		memset(argument.output_file, 0, strlen(argv[optind])+1);
-		memcpy(argument.output_file, argv[optind], strlen(argv[optind]));
+		realpath_f = realpath(argv[optind], NULL);
+		optind++;
+		if (realpath_f != NULL) {
+			argument.output_file = malloc(strlen(realpath_f)+1);
+			memset(argument.output_file, 0, strlen(realpath_f)+1);
+			memcpy(argument.output_file, realpath_f, strlen(realpath_f));
+			free(realpath_f);
+		}
+		realpath_f = NULL;
+		printf("%s\n",argument.output_file);
 	}
 
 	if (type == 0) {
@@ -294,6 +310,9 @@ int main(int argc,char* argv[])
 	/*
 	 * Rectify 3 with argslen
 	 */
+	pid = getpid();
+	printf("%d PID",pid);	
+	createSocket(pid);
 	rc = syscall(__NR_submitjob, dummy, 3);
 	if (rc == 0) {
 		printf("syscall returned %d\n ",rc);

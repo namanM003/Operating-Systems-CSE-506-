@@ -13,8 +13,15 @@
 #include <linux/kthread.h>
 #include <linux/semaphore.h>
 #include <linux/mutex.h>
+#include <net/sock.h>
+#include <linux/socket.h>
+#include <linux/net.h>
+#include <asm/types.h>
+#include <linux/netlink.h>
+#include <linux/skbuff.h>
 #include "job_queue.h"
 #define MAX 128
+#define NETLINK_USER 31
 
 asmlinkage extern long (*sysptr)(void *arg, int argslen);
 /*
@@ -42,6 +49,7 @@ asmlinkage extern long (*sysptr)(void *arg, int argslen);
  *
  * */
 
+struct sock *nl_sk = NULL;
 struct job_queue *jobs = NULL;
 struct job_queue *job = NULL;
 int flag = 0; /* This flag is used to kill the thread */
@@ -547,6 +555,15 @@ static int xcrypt(struct job_metadata data)
 	struct blkcipher_desc desc;
 	unsigned char* key = NULL;
 
+	/*********************NETLINK PART*************/
+	struct nlmsghdr *nlh;
+	int pid;
+	struct sk_buff *skb_out;
+	int msg_size;
+	char *msg = "Success";
+	int res;
+	//struct sock *nl_sk = NULL;
+	/**********************NETLINK Variables end************************/
 	printk("In Encrypt Function\n");
 	printk("Key: %s\n", data.key);
 	printk("Algo: %s\n", data.algorithm);
@@ -737,8 +754,29 @@ out:
 	if (key_buf)
 		kfree(key_buf);
 
+	pid = data.pid;
 
-	return ret;
+	switch(ret) {
+	case 0:
+		msg_size = strlen(msg);
+		skb_out = nlmsg_new(msg_size, 0);
+		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
+		NETLINK_CB(skb_out).dst_group = 0;
+		strncpy(nlmsg_data(nlh), msg, msg_size);
+		res = nlmsg_unicast(nl_sk, skb_out, pid);
+		break;
+	default:
+		msg = "Unsuccessful\n";
+		msg_size = strlen(msg);
+		skb_out = nlmsg_new(msg_size, 0);
+		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
+		NETLINK_CB(skb_out).dst_group = 0; /* not in mcast group */
+		strncpy(nlmsg_data(nlh), msg, msg_size);
+
+		res = nlmsg_unicast(nl_sk, skb_out, pid);
+		break;
+	}
+	return 0;
 }
 
 
@@ -840,7 +878,12 @@ static int consume(void *data)
 
 static int __init init_sys_submitjob(void)
 {
+	struct netlink_kernel_cfg cfg = {
+		                .groups = 1,
+	};
+	//printk("Entering: %s\n", __FUNCTION__);
 	printk("installed new sys_submitjob module\n");
+	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
 	if (sysptr == NULL) {
 		sysptr = submitjob;
 		/*
