@@ -79,7 +79,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 	if (count >= MAX) {
 		mutex_unlock(&lock);
 		printk("Error: Queue is full\n");
-		printk("Sleeping\n"); /* This might not be a good model check once*/
+		printk("Sleeping\n");
 		wait_event_interruptible(waitqueue_consumer, condition == 0);
 	} else {
 		mutex_unlock(&lock);
@@ -170,7 +170,6 @@ asmlinkage long submitjob(void *arg, int argslen)
 		job->job_d.algorithm = kzalloc(
 			strlen_user(((struct job_metadata *)arg)->algorithm)+1,
 			__GFP_WAIT);
-		//Didnt checked for memory allocated or not
 		if (copy_from_user(job->job_d.algorithm,
 			((struct job_metadata *)arg)->algorithm,
 			strlen_user(((struct job_metadata *)arg)->algorithm))) {
@@ -189,7 +188,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 		/* Assuming user is sending a buffer equivalent to
 			* PAGE_SIZE, if not than allocate buffer reuired and
 			* modify program as per the requirement
-			*/
+		*/
 		buffer = (char *)kzalloc(PAGE_SIZE, __GFP_WAIT);
 		counter = 0;
 		list_job = (char *)kzalloc(6, __GFP_WAIT);
@@ -200,8 +199,8 @@ asmlinkage long submitjob(void *arg, int argslen)
 			strcat(buffer, "\n");
 		}
 		/* using the algorithm field of job metadata to store
-			* data about job
-			*/
+		* data about job
+		*/
 		error = 0;
 		if (copy_to_user(((struct job_metadata *)arg)->
 			algorithm, buffer, strlen(buffer))) {
@@ -541,7 +540,7 @@ static int xcrypt(struct job_metadata data)
 	loff_t r_offset = 0;
 	loff_t w_offset = 0;
 	int keylen;
-	unsigned char *hashkey;
+	unsigned char *hashkey = NULL;
 	struct scatterlist sg_hash;
 	struct crypto_hash *tfm = NULL;
 	struct hash_desc desc_hash;
@@ -562,9 +561,7 @@ static int xcrypt(struct job_metadata data)
 	char *msg = "Success";
 	char *unsuc = "Unsuccessfull";
 	int res;
-	//struct sock *nl_sk = NULL;
-	/**********************NETLINK Variables end************************/
-
+	/****Netlink variables end***/
 	ret = kargs_valid(data);
 	if (ret < 0) {
 		printk("xcrypt: invalid arguments\n");
@@ -1220,7 +1217,6 @@ static int consume(void *data)
 			 */
 		mutex_lock(&lock);
 		head = jobs;
-		//job_data = NULL;
 		/*
 		 * This is so that we can find the highest priority job to be
 		 * ran
@@ -1262,10 +1258,6 @@ static int consume(void *data)
 				printk("Nothing to do\n");
 			}
 			/*
-			* #Note clean the memory as per function inside the specific
-			* functions only
-			*/
-			/*
 			* Note : cleaning the memory consume by job data structure
 			*/
 			if (get_job) {
@@ -1280,7 +1272,6 @@ static int consume(void *data)
 		if (count == 0) {
 			condition = 0;
 			mutex_unlock(&lock);
-
 			wait_event_interruptible(waitqueue_consumer,
 						 condition == 1);
 			printk("Thread running again\n");
@@ -1314,7 +1305,6 @@ static int __init init_sys_submitjob(void)
 		 */
 		jobs = kmalloc(sizeof(struct job_queue), __GFP_WAIT);
 		INIT_LIST_HEAD(&jobs->job_q);
-//		mutex_init(&lock, NULL, NULL);
 
 		consumer = kthread_create(consume, NULL, "consumer");
 		init_waitqueue_head(&waitqueue_consumer);
