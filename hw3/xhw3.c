@@ -90,6 +90,10 @@ int main(int argc,char* argv[])
 			break;
 		case 'k':
 			key = 1;
+			if (strlen(optarg) < 6) {
+				//printf("Key size too small\n");
+				key = 2;
+			}
 			argument.key = malloc(strlen(optarg)+1);
 			memset(argument.key, 0, strlen(optarg)+1);
 			memcpy(argument.key, optarg, strlen(optarg)+1);
@@ -132,11 +136,23 @@ int main(int argc,char* argv[])
 			break;
 		case 'h':
 			/* Correct this usage message */
-			printf("Usage Message: \n\t This command takes 4 "
-				"arguments -p is the Passphrase -e to encrypt "
-			       "or -d to decrypt infile and outfile \n Usage "
-			      " Example ./xcipher -p \"This is PassPhrase\" -e"
-			     " inputfile outputfile\n");
+			printf("Usage:\n");
+			printf("To Encrypt/Decrypt\n");
+			printf("\t./xsubmit -t 1 -e/-d -a \"algo name\" -k"
+				       " \"key\" inputfile outputfile\n"
+				"Optional flags:\n\t-x to delete input file\n"
+				"\t-r to rename\n \t-w to overwrite\n");
+			printf("\tAlgorithms Supported\n\t");
+			printf("\t 1. aes \n\t\t 2. blowfish \n\t\t 3. des\n");
+			printf("To list jobs\n");
+			printf("\t./xsubmit -t 4\n");
+			printf("To remove a job\n");
+			printf("\t./xsubmit -t 5 -j jobid\n");
+			printf("To change priority\n");
+			printf("\t./xsubmit -t 6 -j jobid -p new priority\n"
+				"Priority supported between 1-10. 10 being "
+				"highest.\n");
+
 			return 0;
 		case '?':
 			if (optopt == 'p' || optopt == 'a' || optopt == 't' || optopt == 'j' || optopt == 'k') {
@@ -200,6 +216,11 @@ int main(int argc,char* argv[])
 			 */
 			if ( !algorithm || !(flag_encrypt || flag_decrypt) || !key) {
 				printf("Missing 1 or more mandatory argument");
+				error = -EINVAL;
+				goto out;
+			}
+			if (key == 2) {
+				printf("Key length too small\n");
 				error = -EINVAL;
 				goto out;
 			}
@@ -326,7 +347,7 @@ int main(int argc,char* argv[])
 	//printf("%d PID",pid);	
 	/***********Create Socket only for jobs not remove priority and list
 	 */
-	if (type != 5 && type !=4 && type !=6) {
+	if (type == 1 || type ==2 || type == 3) {
 		createSocket(pid);
 		printf("Creating pthread\n");
 		pthread_create(&thread, NULL, (void *) &listen_to_kernel, (void*)pid);
@@ -364,7 +385,11 @@ int main(int argc,char* argv[])
 	}
 	
 	while (1) {
-//		printf("Yo--");
+		printf("Yo--");
+		printf("Main Thread running \n");
+		while(1) {
+			continue;
+		}
 	}
 	
 

@@ -90,11 +90,11 @@ int createSocket(int pid)
 
 void listen_to_kernel() {
 	char * data;
-	printf("Listenong to kernel\n");
+	printf("Listening to kernel\n");
 	recvmsg(sock_fd, &msg, 0);
 	printf("Received Message\n");
 	data = (char *)NLMSG_DATA(nlh);
-	printf("\n\nReceived Message %s\n", data);
+	printf(" %s\n", data);
 	close(sock_fd);
 	pthread_exit(0);
 	

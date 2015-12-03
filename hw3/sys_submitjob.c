@@ -608,7 +608,7 @@ static int xcrypt(struct job_metadata data)
 	loff_t r_offset = 0;
 	loff_t w_offset = 0;
 	int keylen;
-	unsigned char *hashkey;
+	unsigned char *hashkey = NULL;
 	struct scatterlist sg_hash;
 	struct crypto_hash *tfm = NULL;
 	struct hash_desc desc_hash;
@@ -625,6 +625,7 @@ static int xcrypt(struct job_metadata data)
 	int res;
 	//struct sock *nl_sk = NULL;
 	/**********************NETLINK Variables end************************/
+			
 	printk("In Encrypt Function\n");
 	printk("Key: %s\n", data.key);
 	printk("Algo: %s\n", data.algorithm);
@@ -920,7 +921,6 @@ static int consume(void *data)
 		if (count == 0) {
 			condition = 0;
 			mutex_unlock(&lock);
-
 			wait_event_interruptible(waitqueue_consumer, condition == 1);
 			printk("Thread running again\n");
 		} else {
@@ -929,10 +929,9 @@ static int consume(void *data)
 			 * is sleeping wake it up.
 			 */
 			condition = 0; /* Should condition use a valu of zero 
-					 or should I make one more qait queue*/
+					 or should I make one more wait queue*/
 			mutex_unlock(&lock);
 			wake_up_interruptible(&waitqueue_consumer);
-			
 		}
 
 	}
