@@ -1080,12 +1080,15 @@ out:
 static int xompress_compress(char *src, char *dst, unsigned int buflen,
 			     const char *algo)
 {
+	printk("In compressions");
 	int rc = 0;
+	/*
 	struct crypto_comp *tfm = crypto_alloc_comp("lzo", 0, CRYPTO_ALG_ASYNC);
 	unsigned int finalLength = 0;
 	rc = crypto_comp_compress(tfm, src, strlen(src), dst, &finalLength);
 	printk(" return code from compression:%d, final length :%d", rc, finalLength);
-	return 0;
+	*/
+	return rc;
 }
 
 static int xompress(struct job_metadata data)
@@ -1099,11 +1102,13 @@ static int xompress(struct job_metadata data)
 	loff_t r_offset = 0;
 	loff_t w_offset = 0;
 
+	/*
 	ret = kargs_valid(data);
 	if (ret < 0) {
 		printk("xcrypt: invalid arguments\n");
 		goto out;
 	}
+	*/
 
 	algorithm = kmalloc(sizeof(char) * 16, GFP_KERNEL);
 	if (!algorithm) {
@@ -1246,7 +1251,7 @@ static int consume(void *data)
 				break;
 			case 2:
 				printk("In Job type 2\n");
-				//xompress(get_job->job_d);
+				xompress(get_job->job_d);
 				break;
 			case 3:
 				printk("In job type 3\n");
