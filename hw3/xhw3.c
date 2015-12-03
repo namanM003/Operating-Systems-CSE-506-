@@ -173,9 +173,14 @@ int main(int argc,char* argv[])
 			memset(argument.output_file, 0, strlen(realpath_f)+1);
 			memcpy(argument.output_file, realpath_f, strlen(realpath_f));
 			free(realpath_f);
+			printf("%s\n", argument.output_file);
+		} else {
+			argument.output_file = malloc(strlen(argv[--optind])+1);
+			memset(argument.output_file, 0, strlen(argv[optind])+1);
+			memcpy(argument.output_file, argv[optind], strlen(argv[optind]));
 		}
 		realpath_f = NULL;
-		printf("%s\n",argument.output_file);
+		
 	}
 
 	if (type == 0) {
