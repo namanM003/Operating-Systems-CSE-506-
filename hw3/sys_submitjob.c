@@ -225,6 +225,32 @@ asmlinkage long submitjob(void *arg, int argslen)
 		}
 		break;
 	case 3:
+		job->job_d.input_file = kzalloc(strlen_user((
+					(struct job_metadata *)arg)->
+					input_file)+1, __GFP_WAIT);
+		if (job->job_d.input_file == NULL) {
+			error = -ENOMEM;
+			goto out_free;
+		}
+		if (copy_from_user(job->job_d.input_file,
+			((struct job_metadata *)arg)->input_file,
+			strlen_user(((struct job_metadata *)
+					arg)->input_file))) {
+			error = -EINVAL;
+			kfree(job->job_d.input_file);
+			goto out_free;
+		}
+		job->job_d.algorithm = kzalloc(
+			strlen_user(((struct job_metadata *)arg)->algorithm)+1,
+			__GFP_WAIT);
+		if (copy_from_user(job->job_d.algorithm,
+			((struct job_metadata *)arg)->algorithm,
+			strlen_user(((struct job_metadata *)arg)->algorithm))) {
+			error = -EINVAL;
+			//DO REST OF FREEING
+			goto out_free;
+		}
+
 		job->job_d.type = 3;
 		break;
 	case 4:
