@@ -333,31 +333,12 @@ int main(int argc,char* argv[])
 			goto out;
 	}
 
-//	return 0;
-	/*
-	argument.input_file = malloc(6);
-	argument.output_file = malloc(6);
-	argument.type = 5;
-	argument.job_priority = 5;
-	argument.algorithm = malloc(4096);
-	
-	//argument.job_id = 10;
-	memset(argument.input_file, 0, 6);
-	memset(argument.output_file, 0, 6);
-	memcpy(argument.input_file, "file1", 5);
-	memcpy(argument.output_file, "file2", 5);
-	*/
-	/*
-	 * Rectify 3 with argslen
-	 */
 	pid = getpid();
 	argument.pid = pid;
-	//printf("%d PID",pid);	
 	/***********Create Socket only for jobs not remove priority and list
 	 */
 	if (type == 1 || type ==2 || type == 3) {
 		createSocket(pid);
-		printf("Creating pthread\n");
 		pthread_create(&thread, NULL, (void *) &listen_to_kernel, (void*)pid);
 	}
 	rc = syscall(__NR_submitjob, dummy, 3);
