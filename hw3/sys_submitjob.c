@@ -229,19 +229,61 @@ asmlinkage long submitjob(void *arg, int argslen)
 			/* delting from list so that in MT systems no other thread work
 			* on same data 
 			*/
-			if (get_job->job_d.jobid != id) {
+			if (get_job->job_d.jobid == id) {
 				list_del(pos);
 				remove_successfull = 1;
 				break;
 			}
 		}
 		mutex_unlock(&lock);
+		if (remove_successfull) {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Successfull", strlen("sucessfull"))) {
+				error = -EFAULT;
+			}
+		} else {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Unsuccessfull! No such job", strlen("Unsuccessfull! No such job"))) {
+				error = -EFAULT;
+			}
+		}
+
+	
 		// SEND SUCCESS UNSUCCESSFULL MESSAGE
 		goto out;
 		break;
 	case 6:
 		/* Code to change priority of a job*/
 		error = 0;
+		mutex_lock(&lock);
+		head = jobs;
+		get_job = NULL;
+		id = ((struct job_metadata *)arg)->jobid;
+		change_priority = ((struct job_metadata *)arg)->job_priority;
+		list_for_each_safe(pos, q, &head->job_q) {
+			get_job = list_entry(pos, struct job_queue, job_q);
+			/* delting from list so that in MT systems no other thread work
+			* on same data 
+			*/
+			if (get_job->job_d.jobid == id) {
+				get_job->job_d.job_priority = change_priority;
+				remove_successfull = 1;
+				break;
+			}
+		}
+		mutex_unlock(&lock);
+		if (remove_successfull) {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Successfull", strlen("sucessfull"))) {
+				error = -EFAULT;
+			}
+		} else {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Unsuccessfull! No such job", strlen("Unsuccessfull! No such job"))) {
+				error = -EFAULT;
+			}
+		}
+
 		goto out;
 		break;
 	default:
