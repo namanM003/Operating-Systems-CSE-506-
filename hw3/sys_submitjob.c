@@ -67,14 +67,13 @@ asmlinkage long submitjob(void *arg, int argslen)
 	int counter = 0;
 	int error = 0;
 	struct job_queue *head = NULL;
-	struct job_queue *next_job  = NULL;
 	char *buffer = NULL;
 	char *list_job = NULL;
-	head = jobs;
-	list_for_each_entry(next_job, &jobs->job_q, job_q) {
-		counter = counter + 1;
-	}
-	printk("Value of Counter %d\n,",counter);
+	struct list_head *pos = NULL, *q = NULL;
+	int change_priority = -1;
+	struct job_queue *get_job = NULL;
+	int remove_successfull = 0;	
+	unsigned int id = -1;
 	mutex_lock(&lock);
 	if (count >= MAX) {
 		mutex_unlock(&lock);
@@ -107,7 +106,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 	/* Type and their description
 	 * Type 1: Encrypt decrypt the file
 	 * Type 2: Compress/Decompress file
-	 * Type 3 Compute Checksum/ Hashing
+	 * Type 3: Compute Checksum/ Hashing
 	 * Type 4: List all available jobs
 	 * Type 5: Delete a job
 	 * Type 6: Change Priority of a job
@@ -196,6 +195,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 		buffer = (char *)kzalloc(PAGE_SIZE, __GFP_WAIT);
 		counter = 0;
 		list_job = (char *)kzalloc(6, __GFP_WAIT);
+		mutex_lock(&lock);
 		list_for_each_entry(job, &jobs->job_q, job_q) {
 			snprintf(list_job, 5, "%u %d",
 				job->job_d.jobid, job->job_d.type);
@@ -203,6 +203,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 			strcat(buffer, "\n");
 		
 		}
+		mutex_unlock(&lock);
 		/* using the algorithm field of job metadata to store
 			* data about job
 			*/
@@ -219,11 +220,70 @@ asmlinkage long submitjob(void *arg, int argslen)
 	case 5:
 		/* Code to remove a job from the list */
 		error = 0;
+		mutex_lock(&lock);
+		head = jobs;
+		get_job = NULL;
+		id = ((struct job_metadata *)arg)->jobid;
+		list_for_each_safe(pos, q, &head->job_q) {
+			get_job = list_entry(pos, struct job_queue, job_q);
+			/* delting from list so that in MT systems no other thread work
+			* on same data 
+			*/
+			if (get_job->job_d.jobid == id) {
+				list_del(pos);
+				remove_successfull = 1;
+				break;
+			}
+		}
+		mutex_unlock(&lock);
+		if (remove_successfull) {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Successfull", strlen("sucessfull"))) {
+				error = -EFAULT;
+			}
+		} else {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Unsuccessfull! No such job", strlen("Unsuccessfull! No such job"))) {
+				error = -EFAULT;
+			}
+		}
+
+	
+		// SEND SUCCESS UNSUCCESSFULL MESSAGE
 		goto out;
 		break;
 	case 6:
 		/* Code to change priority of a job*/
 		error = 0;
+		mutex_lock(&lock);
+		head = jobs;
+		get_job = NULL;
+		id = ((struct job_metadata *)arg)->jobid;
+		change_priority = ((struct job_metadata *)arg)->job_priority;
+		list_for_each_safe(pos, q, &head->job_q) {
+			get_job = list_entry(pos, struct job_queue, job_q);
+			/* delting from list so that in MT systems no other thread work
+			* on same data 
+			*/
+			if (get_job->job_d.jobid == id) {
+				get_job->job_d.job_priority = change_priority;
+				remove_successfull = 1;
+				break;
+			}
+		}
+		mutex_unlock(&lock);
+		if (remove_successfull) {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Successfull", strlen("sucessfull"))) {
+				error = -EFAULT;
+			}
+		} else {
+			if (copy_to_user(((struct job_metadata *)arg)->
+				algorithm, "Unsuccessfull! No such job", strlen("Unsuccessfull! No such job"))) {
+				error = -EFAULT;
+			}
+		}
+
 		goto out;
 		break;
 	default:

@@ -278,10 +278,12 @@ int main(int argc,char* argv[])
 				error = -EINVAL;
 				goto out;
 			}
+			argument.algorithm = malloc(4096);
+			memset(argument.algorithm, 0, 4096);
 			break;
 		case 6:
-			if (!job_id || !job_priority) {
-				printf("Missing job id or job priority\n");
+			if (!job_id || !job_priority || job_priority < 1 || job_priority > 10) {
+				printf("Missing/Invalid job id or job priority\n");
 				error = -EINVAL;
 				goto out;
 			}
@@ -291,6 +293,8 @@ int main(int argc,char* argv[])
 				error = -EINVAL;
 				goto out;
 			}
+			argument.algorithm = malloc(4096);
+			memset(argument.algorithm, 0, 4096);
 			break;
 		case 7:
 			break;
@@ -319,17 +323,41 @@ int main(int argc,char* argv[])
 	 */
 	pid = getpid();
 	argument.pid = pid;
-	printf("%d PID",pid);	
+	//printf("%d PID",pid);	
 	/***********Create Socket only for jobs not remove priority and list
 	 */
-	createSocket(pid);
-	printf("Creating pthread\n");
-	pthread_create(&thread, NULL, (void *) &listen_to_kernel, (void*)pid);
+	if (type != 5 && type !=4 && type !=6) {
+		createSocket(pid);
+		printf("Creating pthread\n");
+		pthread_create(&thread, NULL, (void *) &listen_to_kernel, (void*)pid);
+	}
 	rc = syscall(__NR_submitjob, dummy, 3);
 	if (rc == 0) {
 		printf("syscall returned %d\n ",rc);
-		printf(" Job Successfully registered\n");
-		printf("%s", argument.algorithm);
+		//printf(" Job Successfully registered\n");
+		switch (type) {
+		case 4:
+			printf("Job ID\t Job type\n");
+			printf("%s\n",argument.algorithm);
+			printf(" *Legend \n Type:\n 1. Encrypt/Decrypt"
+				"\n 2. Compress/Decompress \n "
+				"3. Hashing\n");
+			break;
+		case 5:
+			printf("%s\n",argument.algorithm);
+			break;
+		case 6:
+			printf("%s\n",argument.algorithm);
+			break;
+		default:
+			printf("Job successfully registered\n");
+			break;
+		}
+		//free(argument.algorithm);
+		if (type == 4 || type ==5 || type == 6) {
+			free(argument.algorithm);
+			goto out;
+		}
 	}
 	else {
 		perror("ERROR:");
