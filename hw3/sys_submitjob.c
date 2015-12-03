@@ -561,6 +561,7 @@ static int xcrypt(struct job_metadata data)
 	struct sk_buff *skb_out;
 	int msg_size;
 	char *msg = "Success";
+	char *unsuc = "Unsuccessfull";
 	int res;
 	//struct sock *nl_sk = NULL;
 	/**********************NETLINK Variables end************************/
@@ -750,25 +751,31 @@ out:
 		kfree(key_buf);
 
 	pid = data.pid;
-
+	printk("%d PID\n",pid);
 	switch(ret) {
 	case 0:
+		printk("Successfull\n");
 		msg_size = strlen(msg);
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
 		NETLINK_CB(skb_out).dst_group = 0;
 		strncpy(nlmsg_data(nlh), msg, msg_size);
 		res = nlmsg_unicast(nl_sk, skb_out, pid);
+		if (res < 0)
+		        printk(KERN_INFO "Error while sending bak to user\n");
 		break;
 	default:
-		msg = "Unsuccessful\n";
-		msg_size = strlen(msg);
+	//	msg = "Unsuccessful\n";
+		printk("Unsuccessful\n");
+		msg_size = strlen(unsuc);
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
 		NETLINK_CB(skb_out).dst_group = 0; /* not in mcast group */
-		strncpy(nlmsg_data(nlh), msg, msg_size);
+		strncpy(nlmsg_data(nlh), unsuc, msg_size);
 
 		res = nlmsg_unicast(nl_sk, skb_out, pid);
+		if (res < 0)
+		        printk(KERN_INFO "Error while sending bak to user\n");
 		break;
 	}
 	return 0;
@@ -1027,7 +1034,8 @@ static void  __exit exit_sys_submitjob(void)
 	flag = 1;
 	condition = 1;
 	wake_up_interruptible(&waitqueue_consumer);
-	
+	if (nl_sk)
+		netlink_kernel_release(nl_sk);	
 	if (sysptr != NULL)
 		sysptr = NULL;
 	if (consumer) {

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <openssl/sha.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include "job_metadata.h"
 #include "netlink.h"
 #ifndef __NR_submitjob
@@ -17,6 +18,7 @@ int main(int argc,char* argv[])
 {
 	int rc;
 	int pid;
+	pthread_t thread;
 	/****Variable Declarations start here*********/
 	/* Job Defination Flags
 	 * 1 to Encrypt/Decrypt
@@ -171,9 +173,14 @@ int main(int argc,char* argv[])
 			memset(argument.output_file, 0, strlen(realpath_f)+1);
 			memcpy(argument.output_file, realpath_f, strlen(realpath_f));
 			free(realpath_f);
+			printf("%s\n", argument.output_file);
+		} else {
+			argument.output_file = malloc(strlen(argv[--optind])+1);
+			memset(argument.output_file, 0, strlen(argv[optind])+1);
+			memcpy(argument.output_file, argv[optind], strlen(argv[optind]));
 		}
 		realpath_f = NULL;
-		printf("%s\n",argument.output_file);
+		
 	}
 
 	if (type == 0) {
@@ -311,8 +318,13 @@ int main(int argc,char* argv[])
 	 * Rectify 3 with argslen
 	 */
 	pid = getpid();
+	argument.pid = pid;
 	printf("%d PID",pid);	
+	/***********Create Socket only for jobs not remove priority and list
+	 */
 	createSocket(pid);
+	printf("Creating pthread\n");
+	pthread_create(&thread, NULL, (void *) &listen_to_kernel, (void*)pid);
 	rc = syscall(__NR_submitjob, dummy, 3);
 	if (rc == 0) {
 		printf("syscall returned %d\n ",rc);
@@ -322,11 +334,11 @@ int main(int argc,char* argv[])
 	else {
 		perror("ERROR:");
 	}
-	/*
-	 * while (1) {
-		printf("Running\n");
+	
+	while (1) {
+		//printf("");
 	}
-	*/
+	
 
 out:
 	return error;
