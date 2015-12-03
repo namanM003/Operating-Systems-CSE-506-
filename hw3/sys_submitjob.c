@@ -913,14 +913,14 @@ static void  __exit exit_sys_submitjob(void)
 	flag = 1;
 	condition = 1;
 	wake_up_interruptible(&waitqueue_consumer);
-	if (nl_sk)
-		netlink_kernel_release(nl_sk);	
 	if (sysptr != NULL)
 		sysptr = NULL;
 	if (consumer) {
 		kthread_stop(consumer);
 		printk("Consumer thread stopped succesfully\n");
-	}	
+	}
+	if (nl_sk)
+		netlink_kernel_release(nl_sk);	
 	printk("removed sys_submitjob module\n");
 }
 

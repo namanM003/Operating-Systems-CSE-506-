@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 #include "netlink.h"
 #define NETLINK_USER 31
 
@@ -87,7 +88,7 @@ int createSocket(int pid)
 //	return 0;
 }
 
-int listen_to_kernel() {
+void listen_to_kernel() {
 	char * data;
 	printf("Listenong to kernel\n");
 	recvmsg(sock_fd, &msg, 0);
@@ -95,7 +96,8 @@ int listen_to_kernel() {
 	data = (char *)NLMSG_DATA(nlh);
 	printf("\n\nReceived Message %s\n", data);
 	close(sock_fd);
-	return 0;
+	pthread_exit(0);
+	
 }
 /*
 int main()
