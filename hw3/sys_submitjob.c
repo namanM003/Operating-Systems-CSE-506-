@@ -284,6 +284,16 @@ static int kargs_valid(const struct job_metadata data)
 		goto out_valid;
 	}
 
+	printk("-----------------\n");
+	printk("Rename: %d\n", data.rename);
+	printk("Overwrite: %d\n", data.overwrite);
+	printk("Delete: %d\n", data.delete_f);
+	printk("In File: %s\n", data.input_file);
+	printk("Out File: %s\n", data.output_file);
+	printk("-----------------\n");
+
+	// VALIDATE DELETE RENAME AND OVERWRITE
+
 	if (!data.output_file || !*data.output_file) {
 		printk("xcrypt: invalid output file path\n");
 		ret = -EINVAL;
@@ -625,116 +635,127 @@ static int xcrypt(struct job_metadata data)
 	keylen = sizeof(key);
 	printk("KeyLen: %d\n", keylen);
 
-	if (data.operation == 1) {
-		ret = xcrypt_encrypt(key, key_buf, key,
-				     keylen, keylen,
-				     cipher);
-		if (ret < 0)
-			goto out;
-
-		w_bytes = xcrypt_write_file(data.output_file, key_buf,
-					    keylen, w_offset);
-		if (w_bytes < 0) {
-			printk("xcrypt: error in writing file.\n");
-			ret = -EIO;
-			goto out;
-		}
-		w_offset = w_offset + w_bytes;
-	} else if (data.operation == 2) {
-		r_bytes = xcrypt_read_file(data.input_file, key_buf,
-					   keylen, r_offset);
-
-		if (r_bytes < 0) {
-			printk("xcrypt: error in reading file.\n");
-			ret  = -EIO;
-			goto out;
-		}
-		r_offset = r_offset + r_bytes;
-
-		ret = xcrypt_decrypt(key_buf, key_buf, key,
-				     keylen, keylen,
-				     cipher);
-		if (ret < 0) {
-			goto out;
-		}
-
-		if (memcmp(key, key_buf, keylen) != 0) {
-			printk(KERN_INFO "xcrypt: wrong key!\n");
-			ret  = -EACCES;
-			goto out;
-		}
-		printk(KERN_INFO "xcrypt: correct key!\n");
+	if (data.rename == 1) {
+		printk("In Rename\n");
 	}
+	else if (data.overwrite == 1) {
+		printk("In Overwrite\n");
+	}
+	else if (data.delete_f == 1) {
+		printk("In Delete\n");
+	}
+	else {
+		if (data.operation == 1) {
+			ret = xcrypt_encrypt(key, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0)
+				goto out;
 
-	do {
-		memset(buf, 0, count);
-		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
-
-		///////////////////// My PRINT /////////////
-		printk("Data Read: |%s|\n", buf);
-		if (r_bytes < 0) {
-			ret  = -EIO;
-			printk("xcrypt: error in reading file.\n");
-			goto out;
-		}
-
-		if (r_bytes == count) {
-			if (data.operation == 1) {
-				ret = xcrypt_encrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				ret = xcrypt_decrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			}
-
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-
-			w_bytes = xcrypt_write_file(data.output_file, buf, count,
-						    w_offset);
+			w_bytes = xcrypt_write_file(data.output_file, key_buf,
+						keylen, w_offset);
 			if (w_bytes < 0) {
-				ret  = -EIO;
 				printk("xcrypt: error in writing file.\n");
+				ret = -EIO;
 				goto out;
 			}
-		}
+			w_offset = w_offset + w_bytes;
+		} else if (data.operation == 2) {
+			r_bytes = xcrypt_read_file(data.input_file, key_buf,
+						keylen, r_offset);
 
-		if (r_bytes < count) {
-			if (data.operation == 1) {
-				ret = xcrypt_encrypt(buf, buf, key,
-						     r_bytes, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				ret = xcrypt_decrypt(buf, buf, key,
-						     r_bytes, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			}
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-			w_bytes = xcrypt_write_file(data.output_file, buf,
-						    r_bytes, w_offset);
-			if (w_bytes < 0) {
+			if (r_bytes < 0) {
+				printk("xcrypt: error in reading file.\n");
 				ret  = -EIO;
-				printk("xcrypt: error in writing file.\n");
 				goto out;
 			}
+			r_offset = r_offset + r_bytes;
+
+			ret = xcrypt_decrypt(key_buf, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0) {
+				goto out;
+			}
+
+			if (memcmp(key, key_buf, keylen) != 0) {
+				printk(KERN_INFO "xcrypt: wrong key!\n");
+				ret  = -EACCES;
+				goto out;
+			}
+			printk(KERN_INFO "xcrypt: correct key!\n");
 		}
 
-		r_offset = r_offset + r_bytes;
-		w_offset = w_offset + w_bytes;
-	} while (r_bytes == count);
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
+
+			///////////////////// My PRINT /////////////
+			printk("Data Read: |%s|\n", buf);
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+
+				///////////////////// My PRINT /////////////
+				printk("Data Enc: |%s|\n", buf);
+
+				w_bytes = xcrypt_write_file(data.output_file, buf, count,
+							w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				///////////////////// My PRINT /////////////
+				printk("Data Enc: |%s|\n", buf);
+				w_bytes = xcrypt_write_file(data.output_file, buf,
+							r_bytes, w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
+	}
 	printk("Done\n");
 
 out:
@@ -781,132 +802,6 @@ out:
 	return 0;
 }
 
-static int xompress_compress(char *src, char *dst, unsigned int buflen,
-			     const char *algo)
-{
-	int rc = 0;
-	struct crypto_comp *tfm = crypto_alloc_comp("lzo", 0, CRYPTO_ALG_ASYNC);
-	unsigned int finalLength = 0;
-	rc = crypto_comp_compress(tfm, src, strlen(src), dst, &finalLength);
-	printk(" return code from compression:%d, final length :%d", rc,   finalLength);// return 0
-	return 0;
-}
-
-static int xompress(struct job_metadata data)
-{
-	int ret = 0;
-	unsigned long count = PAGE_SIZE;
-	int r_bytes = 0;
-	int w_bytes = 0;
-	char *buf = NULL;
-	char *algorithm = NULL;
-	loff_t r_offset = 0;
-	loff_t w_offset = 0;
-
-	ret = kargs_valid(data);
-	if (ret < 0) {
-		printk("xcrypt: invalid arguments\n");
-		goto out;
-	}
-
-	algorithm = kmalloc(sizeof(char) * 16, GFP_KERNEL);
-	if (!algorithm) {
-		printk("xcrypt: kmalloc couldn't allocate memory\n");
-		ret =  -ENOMEM;
-		goto out;
-	}
-
-	strcpy(algorithm, "lzo");
-
-	buf = kmalloc(count, GFP_KERNEL);
-	if (!buf) {
-		printk("xcrypt: kmalloc couldn't allocate memory\n");
-		ret  = -ENOMEM;
-		goto out;
-	}
-
-	do {
-		memset(buf, 0, count);
-		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
-
-		///////////////////// My PRINT /////////////
-		printk("Data Read: |%s|\n", buf);
-		if (r_bytes < 0) {
-			ret  = -EIO;
-			printk("xcrypt: error in reading file.\n");
-			goto out;
-		}
-
-		if (r_bytes == count) {
-			printk("CHECK THIS LATER!!!!!!\n");
-			/*
-			if (data.operation == 1) {
-				ret = xcrypt_encrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				ret = xcrypt_decrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			}
-
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-
-			w_bytes = xcrypt_write_file(data.output_file, buf, count,
-						    w_offset);
-			if (w_bytes < 0) {
-				ret  = -EIO;
-				printk("xcrypt: error in writing file.\n");
-				goto out;
-			}
-			*/
-		}
-
-		if (r_bytes < count) {
-			if (data.operation == 1) {
-				ret = xompress_compress(buf, buf, r_bytes,
-							algorithm);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				/*
-				ret = xompress_decompress(buf, buf, r_bytes,
-							  algorithm);
-				if (ret < 0)
-					goto out;
-				*/
-			}
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-			w_bytes = xcrypt_write_file(data.output_file, buf,
-						    r_bytes, w_offset);
-			if (w_bytes < 0) {
-				ret  = -EIO;
-				printk("xcrypt: error in writing file.\n");
-				goto out;
-			}
-		}
-
-		r_offset = r_offset + r_bytes;
-		w_offset = w_offset + w_bytes;
-	} while (r_bytes == count);
-	printk("Done\n");
-
-out:
-	if (buf)
-		kfree(buf);
-
-	printk("In Xompress\n");
-	return 1;
-}
-
 static int consume(void *data)
 {
 	struct list_head *pos = NULL, *q = NULL;
@@ -915,7 +810,7 @@ static int consume(void *data)
 	struct job_queue *get_job = NULL;
 	//struct job_metadata job_data;
 	printk("In Kernel Thread\n");
-	while (!flag) { /* 
+	while (!flag) { /*
 			 *  Should we add condition to
 			 * continue till all jobs are over of not?
 			 */
@@ -929,7 +824,7 @@ static int consume(void *data)
 		list_for_each_entry(get_job, &head->job_q, job_q) {
 			if (get_job->job_d.job_priority > highest_priority) {
 				highest_priority = get_job->job_d.job_priority;
-			}	
+			}
 		}
 		head = jobs;
 		get_job = NULL;
@@ -951,7 +846,7 @@ static int consume(void *data)
 				break;
 			case 2:
 				printk("In Job type 2\n");
-				xompress(get_job->job_d);
+				//xompress(get_job->job_d);
 				break;
 			case 3:
 				printk("In job type 3\n");
@@ -1020,11 +915,11 @@ static int __init init_sys_submitjob(void)
 		jobs = kmalloc(sizeof(struct job_queue), __GFP_WAIT);
 		INIT_LIST_HEAD(&jobs->job_q);
 //		mutex_init(&lock, NULL, NULL);
-		
+
 		consumer = kthread_create(consume, NULL, "consumer");
 		init_waitqueue_head(&waitqueue_consumer);
 		wake_up_process(consumer);
-		
+
 	}
 	return 0;
 }
@@ -1035,13 +930,13 @@ static void  __exit exit_sys_submitjob(void)
 	condition = 1;
 	wake_up_interruptible(&waitqueue_consumer);
 	if (nl_sk)
-		netlink_kernel_release(nl_sk);	
+		netlink_kernel_release(nl_sk);
 	if (sysptr != NULL)
 		sysptr = NULL;
 	if (consumer) {
 		kthread_stop(consumer);
 		printk("Consumer thread stopped succesfully\n");
-	}	
+	}
 	printk("removed sys_submitjob module\n");
 }
 
