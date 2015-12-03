@@ -7,7 +7,7 @@ all: xsubmitjob netlink xsubmit
 netlink: netlink.c
 		gcc -Wall -Werror -c netlink.c
 xsubmit: xhw3.c
-		gcc -Wall -Werror -I$(INC)/generated/uapi -I$(INC)/uapi netlink.o xhw3.c -lssl -o xsubmit
+		gcc -Wall -Werror -I$(INC)/generated/uapi -I$(INC)/uapi netlink.o xhw3.c -lssl -pthread -o xsubmit
 
 xsubmitjob:
 		make -Wall -Werror -C /lib/modules/$(shell uname -r)/build M=$(CURDIR) modules
