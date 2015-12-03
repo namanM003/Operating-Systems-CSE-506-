@@ -63,24 +63,24 @@ int condition = 0;
 
 unsigned int job_id = 1;
 asmlinkage long submitjob(void *arg, int argslen)
-{	
+{
 	int counter = 0;
 	int error = 0;
 	struct job_queue *head = NULL;
+	struct job_queue *next_job  = NULL;
 	char *buffer = NULL;
 	char *list_job = NULL;
-	struct list_head *pos = NULL, *q = NULL;
-	int change_priority = -1;
-	struct job_queue *get_job = NULL;
-	int remove_successfull = 0;	
-	unsigned int id = -1;
+	head = jobs;
+	list_for_each_entry(next_job, &jobs->job_q, job_q) {
+		counter = counter + 1;
+	}
+	printk("Value of Counter %d\n,",counter);
 	mutex_lock(&lock);
 	if (count >= MAX) {
 		mutex_unlock(&lock);
 		printk("Error: Queue is full\n");
-		printk("Sleeping\n"); /* This might not be a good model check once*/
+		printk("Sleeping\n");
 		wait_event_interruptible(waitqueue_consumer, condition == 0);
-		
 	} else {
 		mutex_unlock(&lock);
 	}
@@ -90,23 +90,21 @@ asmlinkage long submitjob(void *arg, int argslen)
 		error = -EACCES;
 		goto out;
 	}
-	job = kzalloc(sizeof(struct job_queue),
-		       	__GFP_WAIT);
+	job = kzalloc(sizeof(struct job_queue), __GFP_WAIT);
 	if (job == NULL) {
 		error = -ENOMEM;
 		goto out;
 	}
 
 	if (copy_from_user(&job->job_d, (struct job_metadata *) arg,
-			       	sizeof(struct job_metadata))) {
+			   sizeof(struct job_metadata))) {
 		error = -EFAULT;
 		goto out_free;
 	}
-	
 	/* Type and their description
 	 * Type 1: Encrypt decrypt the file
 	 * Type 2: Compress/Decompress file
-	 * Type 3: Compute Checksum/ Hashing
+	 * Type 3 Compute Checksum/ Hashing
 	 * Type 4: List all available jobs
 	 * Type 5: Delete a job
 	 * Type 6: Change Priority of a job
@@ -169,12 +167,11 @@ asmlinkage long submitjob(void *arg, int argslen)
 				kfree(job->job_d.key);
 				goto out_free;
 		}
-		job->job_d.algorithm = kzalloc(strlen_user((
-					(struct job_metadata *)arg)->algorithm)+1,
-					__GFP_WAIT);
-		//Didnt checked for memory allocated or not
-		if (copy_from_user(job->job_d.algorithm, 
-			((struct job_metadata *)arg)->algorithm, 
+		job->job_d.algorithm = kzalloc(
+			strlen_user(((struct job_metadata *)arg)->algorithm)+1,
+			__GFP_WAIT);
+		if (copy_from_user(job->job_d.algorithm,
+			((struct job_metadata *)arg)->algorithm,
 			strlen_user(((struct job_metadata *)arg)->algorithm))) {
 			error = -EINVAL;
 			//DO REST OF FREEING
@@ -191,22 +188,19 @@ asmlinkage long submitjob(void *arg, int argslen)
 		/* Assuming user is sending a buffer equivalent to
 			* PAGE_SIZE, if not than allocate buffer reuired and
 			* modify program as per the requirement
-			*/
+		*/
 		buffer = (char *)kzalloc(PAGE_SIZE, __GFP_WAIT);
 		counter = 0;
 		list_job = (char *)kzalloc(6, __GFP_WAIT);
-		mutex_lock(&lock);
 		list_for_each_entry(job, &jobs->job_q, job_q) {
 			snprintf(list_job, 5, "%u %d",
 				job->job_d.jobid, job->job_d.type);
 			strncat(buffer, list_job, strlen(list_job));
 			strcat(buffer, "\n");
-		
 		}
-		mutex_unlock(&lock);
 		/* using the algorithm field of job metadata to store
-			* data about job
-			*/
+		* data about job
+		*/
 		error = 0;
 		if (copy_to_user(((struct job_metadata *)arg)->
 			algorithm, buffer, strlen(buffer))) {
@@ -215,75 +209,16 @@ asmlinkage long submitjob(void *arg, int argslen)
 		kfree(buffer);
 		kfree(list_job);
 		//error = 0;
-		goto out;	
+		goto out;
 		break;
 	case 5:
 		/* Code to remove a job from the list */
 		error = 0;
-		mutex_lock(&lock);
-		head = jobs;
-		get_job = NULL;
-		id = ((struct job_metadata *)arg)->jobid;
-		list_for_each_safe(pos, q, &head->job_q) {
-			get_job = list_entry(pos, struct job_queue, job_q);
-			/* delting from list so that in MT systems no other thread work
-			* on same data 
-			*/
-			if (get_job->job_d.jobid == id) {
-				list_del(pos);
-				remove_successfull = 1;
-				break;
-			}
-		}
-		mutex_unlock(&lock);
-		if (remove_successfull) {
-			if (copy_to_user(((struct job_metadata *)arg)->
-				algorithm, "Successfull", strlen("sucessfull"))) {
-				error = -EFAULT;
-			}
-		} else {
-			if (copy_to_user(((struct job_metadata *)arg)->
-				algorithm, "Unsuccessfull! No such job", strlen("Unsuccessfull! No such job"))) {
-				error = -EFAULT;
-			}
-		}
-
-	
-		// SEND SUCCESS UNSUCCESSFULL MESSAGE
 		goto out;
 		break;
 	case 6:
 		/* Code to change priority of a job*/
 		error = 0;
-		mutex_lock(&lock);
-		head = jobs;
-		get_job = NULL;
-		id = ((struct job_metadata *)arg)->jobid;
-		change_priority = ((struct job_metadata *)arg)->job_priority;
-		list_for_each_safe(pos, q, &head->job_q) {
-			get_job = list_entry(pos, struct job_queue, job_q);
-			/* delting from list so that in MT systems no other thread work
-			* on same data 
-			*/
-			if (get_job->job_d.jobid == id) {
-				get_job->job_d.job_priority = change_priority;
-				remove_successfull = 1;
-				break;
-			}
-		}
-		mutex_unlock(&lock);
-		if (remove_successfull) {
-			if (copy_to_user(((struct job_metadata *)arg)->
-				algorithm, "Successfull", strlen("sucessfull"))) {
-				error = -EFAULT;
-			}
-		} else {
-			if (copy_to_user(((struct job_metadata *)arg)->
-				algorithm, "Unsuccessfull! No such job", strlen("Unsuccessfull! No such job"))) {
-				error = -EFAULT;
-			}
-		}
-
 		goto out;
 		break;
 	default:
@@ -296,7 +231,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 	job->job_d.jobid = job_id;
 	job_id++;
 	list_add_tail(&job->job_q, &(jobs->job_q));
-	
+
 	if (!count) {
 		printk("Checked condition of counter waking consumer q up\n");
 
@@ -343,6 +278,8 @@ static int kargs_valid(const struct job_metadata data)
 		ret = -EINVAL;
 		goto out_valid;
 	}
+
+	/////////////////////////// VALIDATE DELETE RENAME AND OVERWRITE
 
 	if (!data.output_file || !*data.output_file) {
 		printk("xcrypt: invalid output file path\n");
@@ -403,12 +340,6 @@ out_valid:
 	return ret;
 }
 
-static inline
-unsigned int ll_crypto_tfm_alg_min_keysize(struct crypto_blkcipher *tfm)
-{
-	return crypto_blkcipher_tfm(tfm)->__crt_alg->cra_blkcipher.min_keysize;
-}
-
 static int xcrypt_encrypt(char *src, char *dst, const unsigned char *key,
 			  unsigned int buflen, int keylen, const char *algo)
 {
@@ -428,15 +359,6 @@ static int xcrypt_encrypt(char *src, char *dst, const unsigned char *key,
 		printk("sys_xcrypt: failed to allocate cipher handle for %s\n",
 		       alg);
 		return -EINVAL;
-	}
-
-	min = ll_crypto_tfm_alg_min_keysize(tfm);
-	if (keylen < min) {
-		printk("sys_xcrypt: keylen at least %d bits for %s\n",
-		       min * 8, alg);
-		///////////////// CHNAGE THIS LATER ///////////////////
-		//rc = -EINVAL;
-		//goto out;
 	}
 
 	rc = crypto_blkcipher_setkey(tfm, key, min);
@@ -485,14 +407,6 @@ static int xcrypt_decrypt(char *src, char *dst, const unsigned char *key,
 		printk("sys_xcrypt: failed to allocate cipher handle for %s\n",
 		       alg);
 		return -EINVAL;
-	}
-
-	min = ll_crypto_tfm_alg_min_keysize(tfm);
-	if (keylen < min) {
-		printk("sys_xcrypt: keylen at least %d bits for %s\n",
-		       min * 8, alg);
-		///////////////// CHNAGE THIS LATER ///////////////////
-		//goto out;
 	}
 
 	rc = crypto_blkcipher_setkey(tfm, key, min);
@@ -615,6 +529,12 @@ static int xcrypt(struct job_metadata data)
 	struct blkcipher_desc desc;
 	unsigned char* key = NULL;
 
+	char *temp_file = NULL;
+	struct file *inp_filp;
+	struct file *ofilp;
+	struct file *tmp_file;
+	mm_segment_t oldfs;
+
 	/*********************NETLINK PART*************/
 	struct nlmsghdr *nlh;
 	int pid;
@@ -623,15 +543,6 @@ static int xcrypt(struct job_metadata data)
 	char *msg = "Success";
 	char *unsuc = "Unsuccessfull";
 	int res;
-	//struct sock *nl_sk = NULL;
-	/**********************NETLINK Variables end************************/
-			
-	printk("In Encrypt Function\n");
-	printk("Key: %s\n", data.key);
-	printk("Algo: %s\n", data.algorithm);
-	printk("Inp: %s\n", data.input_file);
-	printk("Out: %s\n", data.output_file);
-
 	ret = kargs_valid(data);
 	if (ret < 0) {
 		printk("xcrypt: invalid arguments\n");
@@ -669,7 +580,7 @@ static int xcrypt(struct job_metadata data)
 		ret = -ENOMEM;
 		goto out;
 	}
-	/////////////////////////////CODE TO HASH KEY IN KERNEL//////////////////////////////////////////////////
+	/* Code to hash key in kernel */
 	hashkey = kmalloc(20, __GFP_WAIT);
 	if(hashkey == NULL){
 		ret = -ENOMEM;
@@ -685,123 +596,424 @@ static int xcrypt(struct job_metadata data)
 	crypto_hash_update(&desc_hash,&sg_hash,strlen(data.key));
 	crypto_hash_final(&desc_hash,hashkey);
 	crypto_free_hash(tfm);
-	////////////////////////////////////////////////////////////////////////////////////////////////////////	
 	memcpy(key,hashkey,16);
-	//keylen = sizeof(key) / sizeof(key[0]);
 	keylen = sizeof(key);
-	printk("KeyLen: %d\n", keylen);
 
-	if (data.operation == 1) {
-		ret = xcrypt_encrypt(key, key_buf, key,
-				     keylen, keylen,
-				     cipher);
-		if (ret < 0)
-			goto out;
+	if ((data.rename == 1) || (data.delete_f == 1)) {
+		printk("In Rename\n");
+		if (data.operation == 1) {
+			ret = xcrypt_encrypt(key, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0)
+				goto out;
 
-		w_bytes = xcrypt_write_file(data.output_file, key_buf,
-					    keylen, w_offset);
-		if (w_bytes < 0) {
-			printk("xcrypt: error in writing file.\n");
-			ret = -EIO;
+			w_bytes = xcrypt_write_file(data.output_file, key_buf,
+						keylen, w_offset);
+			if (w_bytes < 0) {
+				printk("xcrypt: error in writing file.\n");
+				ret = -EIO;
+				goto out;
+			}
+			w_offset = w_offset + w_bytes;
+		} else if (data.operation == 2) {
+			r_bytes = xcrypt_read_file(data.input_file, key_buf,
+						keylen, r_offset);
+
+			if (r_bytes < 0) {
+				printk("xcrypt: error in reading file.\n");
+				ret  = -EIO;
+				goto out;
+			}
+			r_offset = r_offset + r_bytes;
+
+			ret = xcrypt_decrypt(key_buf, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0) {
+				goto out;
+			}
+
+			if (memcmp(key, key_buf, keylen) != 0) {
+				printk(KERN_INFO "xcrypt: wrong key!\n");
+				ret  = -EACCES;
+				goto out;
+			}
+			printk(KERN_INFO "xcrypt: correct key!\n");
+		}
+
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(data.input_file, buf,
+						   count, r_offset);
+
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				w_bytes = xcrypt_write_file(data.output_file,
+							    buf, count,
+							    w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				w_bytes = xcrypt_write_file(data.output_file,
+							    buf, r_bytes,
+							    w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
+		/* Deleting File*/
+		inp_filp = filp_open(data.input_file, O_RDWR, 0644);
+
+		if (!inp_filp || IS_ERR(inp_filp)) {
+			printk("xcrypt: xcrypt delete file err %d\n",
+			(int)PTR_ERR(inp_filp));
+			return -1;
+		}
+
+		if (!inp_filp->f_op->write)
+			return -2;  /* file(system) doesn't allow writes */
+
+		oldfs = get_fs();
+		set_fs(KERNEL_DS);
+		mutex_lock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		vfs_unlink(inp_filp->f_path.dentry->d_parent->d_inode,
+			   inp_filp->f_path.dentry, NULL);
+		mutex_unlock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		set_fs(oldfs);
+		filp_close(inp_filp, NULL);
+	} else if (data.overwrite == 1) {
+		printk("In Overwrite\n");
+		/* create temp file */
+		temp_file = kmalloc(strlen(data.input_file)+5, __GFP_WAIT);
+		memset(temp_file, 0, strlen(data.input_file)+5);
+		strcpy(temp_file, data.input_file);
+		strcat(temp_file, ".tmp");
+		tmp_file = filp_open(temp_file, O_WRONLY | O_CREAT, S_IWUSR);
+		if(IS_ERR(tmp_file)){
+			ret = -EFAULT;
 			goto out;
 		}
-		w_offset = w_offset + w_bytes;
-	} else if (data.operation == 2) {
-		r_bytes = xcrypt_read_file(data.input_file, key_buf,
-					   keylen, r_offset);
+		filp_close(tmp_file, NULL);
+		/* read/write from input to tmp */
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(data.input_file, buf, count,
+						   r_offset);
 
-		if (r_bytes < 0) {
-			printk("xcrypt: error in reading file.\n");
-			ret  = -EIO;
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				w_bytes = xcrypt_write_file(temp_file, buf,
+							    count, w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				w_bytes = xcrypt_write_file(temp_file, buf,
+							r_bytes, w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
+		/* clear input */
+		ofilp = filp_open(data.input_file, O_RDWR | O_TRUNC, 0);
+		if(IS_ERR(ofilp)){
+			ret = -EFAULT;
 			goto out;
 		}
-		r_offset = r_offset + r_bytes;
+		filp_close(ofilp, NULL);
+		/* encrypt from tmp to input */
+		if (data.operation == 1) {
+			ret = xcrypt_encrypt(key, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0)
+				goto out;
 
-		ret = xcrypt_decrypt(key_buf, key_buf, key,
-				     keylen, keylen,
-				     cipher);
-		if (ret < 0) {
-			goto out;
+			w_bytes = xcrypt_write_file(data.input_file, key_buf,
+						keylen, w_offset);
+			if (w_bytes < 0) {
+				printk("xcrypt: error in writing file.\n");
+				ret = -EIO;
+				goto out;
+			}
+			w_offset = w_offset + w_bytes;
+		} else if (data.operation == 2) {
+			r_bytes = xcrypt_read_file(temp_file, key_buf,
+						keylen, r_offset);
+
+			if (r_bytes < 0) {
+				printk("xcrypt: error in reading file.\n");
+				ret  = -EIO;
+				goto out;
+			}
+			r_offset = r_offset + r_bytes;
+
+			ret = xcrypt_decrypt(key_buf, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0) {
+				goto out;
+			}
+
+			if (memcmp(key, key_buf, keylen) != 0) {
+				printk(KERN_INFO "xcrypt: wrong key!\n");
+				ret  = -EACCES;
+				goto out;
+			}
+			printk(KERN_INFO "xcrypt: correct key!\n");
 		}
 
-		if (memcmp(key, key_buf, keylen) != 0) {
-			printk(KERN_INFO "xcrypt: wrong key!\n");
-			ret  = -EACCES;
-			goto out;
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(temp_file, buf, count,
+						   r_offset);
+
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				w_bytes = xcrypt_write_file(data.input_file,
+							    buf, count,
+							    w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				w_bytes = xcrypt_write_file(data.input_file,
+							    buf, r_bytes,
+							    w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
+		/* delete tmp file */
+		inp_filp = filp_open(temp_file, O_RDWR, 0644);
+
+		if (!inp_filp || IS_ERR(inp_filp)) {
+			printk("xcrypt: xcrypt delete file err %d\n",
+			(int)PTR_ERR(inp_filp));
+			return -1;
 		}
-		printk(KERN_INFO "xcrypt: correct key!\n");
+
+		if (!inp_filp->f_op->write)
+			return -2;
+
+		oldfs = get_fs();
+		set_fs(KERNEL_DS);
+		mutex_lock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		vfs_unlink(inp_filp->f_path.dentry->d_parent->d_inode,
+			   inp_filp->f_path.dentry, NULL);
+		mutex_unlock(&inp_filp->f_path.dentry->d_parent->d_inode->i_mutex);
+		set_fs(oldfs);
+		filp_close(inp_filp, NULL);
+	} else {
+		if (data.operation == 1) {
+			ret = xcrypt_encrypt(key, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0)
+				goto out;
+
+			w_bytes = xcrypt_write_file(data.output_file, key_buf,
+						keylen, w_offset);
+			if (w_bytes < 0) {
+				printk("xcrypt: error in writing file.\n");
+				ret = -EIO;
+				goto out;
+			}
+			w_offset = w_offset + w_bytes;
+		} else if (data.operation == 2) {
+			r_bytes = xcrypt_read_file(data.input_file, key_buf,
+						keylen, r_offset);
+
+			if (r_bytes < 0) {
+				printk("xcrypt: error in reading file.\n");
+				ret  = -EIO;
+				goto out;
+			}
+			r_offset = r_offset + r_bytes;
+
+			ret = xcrypt_decrypt(key_buf, key_buf, key,
+					keylen, keylen,
+					cipher);
+			if (ret < 0) {
+				goto out;
+			}
+
+			if (memcmp(key, key_buf, keylen) != 0) {
+				printk(KERN_INFO "xcrypt: wrong key!\n");
+				ret  = -EACCES;
+				goto out;
+			}
+			printk(KERN_INFO "xcrypt: correct key!\n");
+		}
+
+		do {
+			memset(buf, 0, count);
+			r_bytes = xcrypt_read_file(data.input_file, buf, count,
+						   r_offset);
+
+			if (r_bytes < 0) {
+				ret  = -EIO;
+				printk("xcrypt: error in reading file.\n");
+				goto out;
+			}
+
+			if (r_bytes == count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							count, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				w_bytes = xcrypt_write_file(data.output_file,
+							    buf, count,
+							    w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			if (r_bytes < count) {
+				if (data.operation == 1) {
+					ret = xcrypt_encrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				} else if (data.operation == 2) {
+					ret = xcrypt_decrypt(buf, buf, key,
+							r_bytes, keylen,
+							cipher);
+					if (ret < 0)
+						goto out;
+				}
+
+				w_bytes = xcrypt_write_file(data.output_file,
+							    buf, r_bytes,
+							    w_offset);
+				if (w_bytes < 0) {
+					ret  = -EIO;
+					printk("xcrypt: error in writing file.\n");
+					goto out;
+				}
+			}
+
+			r_offset = r_offset + r_bytes;
+			w_offset = w_offset + w_bytes;
+		} while (r_bytes == count);
 	}
-
-	do {
-		memset(buf, 0, count);
-		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
-
-		///////////////////// My PRINT /////////////
-		printk("Data Read: |%s|\n", buf);
-		if (r_bytes < 0) {
-			ret  = -EIO;
-			printk("xcrypt: error in reading file.\n");
-			goto out;
-		}
-
-		if (r_bytes == count) {
-			if (data.operation == 1) {
-				ret = xcrypt_encrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				ret = xcrypt_decrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			}
-
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-
-			w_bytes = xcrypt_write_file(data.output_file, buf, count,
-						    w_offset);
-			if (w_bytes < 0) {
-				ret  = -EIO;
-				printk("xcrypt: error in writing file.\n");
-				goto out;
-			}
-		}
-
-		if (r_bytes < count) {
-			if (data.operation == 1) {
-				ret = xcrypt_encrypt(buf, buf, key,
-						     r_bytes, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				ret = xcrypt_decrypt(buf, buf, key,
-						     r_bytes, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			}
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-			w_bytes = xcrypt_write_file(data.output_file, buf,
-						    r_bytes, w_offset);
-			if (w_bytes < 0) {
-				ret  = -EIO;
-				printk("xcrypt: error in writing file.\n");
-				goto out;
-			}
-		}
-
-		r_offset = r_offset + r_bytes;
-		w_offset = w_offset + w_bytes;
-	} while (r_bytes == count);
-	printk("Done\n");
 
 out:
 	if (buf)
@@ -817,7 +1029,6 @@ out:
 		kfree(key_buf);
 
 	pid = data.pid;
-	printk("%d PID\n",pid);
 	switch(ret) {
 	case 0:
 		printk("Successfull\n");
@@ -847,7 +1058,6 @@ out:
 	return 0;
 }
 
-
 static int consume(void *data)
 {
 	struct list_head *pos = NULL, *q = NULL;
@@ -856,13 +1066,12 @@ static int consume(void *data)
 	struct job_queue *get_job = NULL;
 	//struct job_metadata job_data;
 	printk("In Kernel Thread\n");
-	while (!flag) { /* 
+	while (!flag) { /*
 			 *  Should we add condition to
 			 * continue till all jobs are over of not?
 			 */
 		mutex_lock(&lock);
 		head = jobs;
-		//job_data = NULLi;
 		/*
 		 * This is so that we can find the highest priority job to be
 		 * ran
@@ -870,7 +1079,7 @@ static int consume(void *data)
 		list_for_each_entry(get_job, &head->job_q, job_q) {
 			if (get_job->job_d.job_priority > highest_priority) {
 				highest_priority = get_job->job_d.job_priority;
-			}	
+			}
 		}
 		head = jobs;
 		get_job = NULL;
@@ -878,7 +1087,7 @@ static int consume(void *data)
 		list_for_each_safe(pos, q, &head->job_q) {
 			get_job = list_entry(pos, struct job_queue, job_q);
 			/* delting from list so that in MT systems no other thread work
-			* on same data 
+			* on same data
 			*/
 			if (get_job->job_d.job_priority != highest_priority) {
 				continue;
@@ -892,6 +1101,7 @@ static int consume(void *data)
 				break;
 			case 2:
 				printk("In Job type 2\n");
+				//xompress(get_job->job_d);
 				break;
 			case 3:
 				printk("In job type 3\n");
@@ -902,10 +1112,6 @@ static int consume(void *data)
 			default:
 				printk("Nothing to do\n");
 			}
-			/*
-			* #Note clean the memory as per function inside the specific
-			* functions only
-			*/
 			/*
 			* Note : cleaning the memory consume by job data structure
 			*/
@@ -921,25 +1127,22 @@ static int consume(void *data)
 		if (count == 0) {
 			condition = 0;
 			mutex_unlock(&lock);
-			wait_event_interruptible(waitqueue_consumer, condition == 1);
+			wait_event_interruptible(waitqueue_consumer,
+						 condition == 1);
 			printk("Thread running again\n");
 		} else {
-			/* 
+			/*
 			 * Make Condition 0 and call wake_up so that if producer
 			 * is sleeping wake it up.
 			 */
-			condition = 0; /* Should condition use a valu of zero 
-					 or should I make one more wait queue*/
+			condition = 0; /* Should condition use a valu of zero
+					 or should I make one more qait queue*/
 			mutex_unlock(&lock);
 			wake_up_interruptible(&waitqueue_consumer);
 		}
-
 	}
 
 	return 1;
-
-
-
 }
 
 static int __init init_sys_submitjob(void)
@@ -947,7 +1150,7 @@ static int __init init_sys_submitjob(void)
 	struct netlink_kernel_cfg cfg = {
 		                .groups = 1,
 	};
-	//printk("Entering: %s\n", __FUNCTION__);
+
 	printk("installed new sys_submitjob module\n");
 	nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
 	if (sysptr == NULL) {
@@ -957,12 +1160,10 @@ static int __init init_sys_submitjob(void)
 		 */
 		jobs = kmalloc(sizeof(struct job_queue), __GFP_WAIT);
 		INIT_LIST_HEAD(&jobs->job_q);
-//		mutex_init(&lock, NULL, NULL);
-		
+
 		consumer = kthread_create(consume, NULL, "consumer");
 		init_waitqueue_head(&waitqueue_consumer);
 		wake_up_process(consumer);
-		
 	}
 	return 0;
 }
@@ -979,7 +1180,7 @@ static void  __exit exit_sys_submitjob(void)
 		printk("Consumer thread stopped succesfully\n");
 	}
 	if (nl_sk)
-		netlink_kernel_release(nl_sk);	
+		netlink_kernel_release(nl_sk);
 	printk("removed sys_submitjob module\n");
 }
 

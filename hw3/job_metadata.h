@@ -20,7 +20,7 @@ struct job_metadata {
 	char *output_file;
 	char *key;
 	char *algorithm;
-	
+
 	int pid;
 	/*
 	 * int priority;
