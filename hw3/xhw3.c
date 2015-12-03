@@ -224,6 +224,14 @@ int main(int argc,char* argv[])
 				error = -EINVAL;
 				goto out;
 			}
+
+			if ( strcmp("aes", argument.algorithm) &&
+				strcmp("blowfish", argument.algorithm) &&
+				strcmp("des", argument.algorithm) ) {
+				printf("Unsupported algorithm passed\n");
+				error = -EINVAL;
+				goto out;
+			}
 			if ( flag_compress || flag_decompress || (flag_encrypt && flag_decrypt) || job_id || ((delete && overwrite) || (delete && rename) ||
 						(overwrite && rename))) {
 				printf("One or more wrong/extra argument sent\n");
