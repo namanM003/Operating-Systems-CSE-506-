@@ -1329,6 +1329,7 @@ static int consume(void *data)
 			 *  Should we add condition to
 			 * continue till all jobs are over of not?
 			 */
+		highest_priority = -1;
 		mutex_lock(&lock);
 		head = jobs;
 		/*
