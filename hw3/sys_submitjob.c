@@ -1125,11 +1125,11 @@ static int xompress_compress(char *src, char *dst, unsigned int buflen,
 {
 	printk("In compressions");
 	int rc = 0;
-	/*
 	struct crypto_comp *tfm = crypto_alloc_comp("lzo", 0, CRYPTO_ALG_ASYNC);
 	unsigned int finalLength = 0;
 	rc = crypto_comp_compress(tfm, src, strlen(src), dst, &finalLength);
 	printk(" return code from compression:%d, final length :%d", rc, finalLength);
+	/*
 	*/
 	return rc;
 }
