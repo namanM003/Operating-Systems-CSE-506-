@@ -205,7 +205,11 @@ extern struct trace_event_functions exit_syscall_print_funcs;
 	}								\
 	static inline long SYSC##name(__MAP(x,__SC_DECL,__VA_ARGS__))
 
+<<<<<<< HEAD
 asmlinkage long sys_submitjob(void *ptr, int argslen);
+=======
+asmlinkage long sys_xcrypt(void *ptr);
+>>>>>>> b0f5b88c58204a914f706885dc0cf7df622c9c47
 asmlinkage long sys32_quotactl(unsigned int cmd, const char __user *special,
 			       qid_t id, void __user *addr);
 asmlinkage long sys_time(time_t __user *tloc);

@@ -1148,6 +1148,19 @@ asmlinkage long sys_submitjob(void *arg, int argslen)
 		return (*sysptr)(arg, argslen);
 	else
 		return -ENOTSUPP;
+	
+}
+/*
+ * asmlinkage long (*sysptr)(void *arg) = NULL;
+ * Uncomment this for assignment 1
+ */
+
+asmlinkage long sys_xcrypt(void *arg)
+{
+	if (sysptr != NULL)
+		return (*sysptr)(arg);
+	else
+		return -ENOTSUPP;
 }
 EXPORT_SYMBOL(sysptr);
 
