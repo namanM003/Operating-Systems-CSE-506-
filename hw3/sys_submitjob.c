@@ -1353,7 +1353,7 @@ static int consume(void *data)
 				break;
 			case 2:
 				printk("In Job type 2\n");
-				xompress(get_job->job_d);
+				//xompress(get_job->job_d);
 				break;
 			case 3:
 				printk("In job type 3\n");
