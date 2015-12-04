@@ -144,6 +144,10 @@ int main(int argc,char* argv[])
 				"\t-r to rename\n \t-w to overwrite\n");
 			printf("\tAlgorithms Supported\n\t");
 			printf("\t 1. aes \n\t\t 2. blowfish \n\t\t 3. des\n");
+			printf("To find checksum\n");
+			printf("\t./xsubmit -t 3 -a \"algo name\" inputfile\n");
+			printf("\tAlgorithms Supported\n");
+			printf("\t\t 1. md5\n");
 			printf("To list jobs\n");
 			printf("\t./xsubmit -t 4\n");
 			printf("To remove a job\n");
@@ -285,6 +289,27 @@ int main(int argc,char* argv[])
 			goto out;
 			break;
 		case 3:
+			printf("In option 3 hashing\n");
+			if (!algorithm) {
+				printf("Algorithm name missing\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if ( flag_compress || flag_decompress || flag_encrypt || flag_decrypt || job_id || delete || overwrite || rename) {
+				printf("One or more unwanted arguments passed\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (!argument.input_file) {
+				printf("Missing input file name\n");
+				error = -EINVAL;
+				goto out;
+			}
+			if (strcmp("md5", argument.algorithm)) {
+				printf("Unsupported Algorithm passed. Currently we support only md5\n");
+				error = -EINVAL;
+				goto out;
+			}	
 			break;
 		case 4:
 			if (algorithm || flag_encrypt || flag_decrypt || flag_compress || rename || overwrite
