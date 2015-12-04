@@ -305,7 +305,7 @@ int main(int argc,char* argv[])
 				error = -EINVAL;
 				goto out;
 			}
-			if (strcmp("md5", argument.algorithm)) {
+			if (strcmp("md5", argument.algorithm) && strcmp("sha1", argument.algorithm)) {
 				printf("Unsupported Algorithm passed. Currently we support only md5\n");
 				error = -EINVAL;
 				goto out;

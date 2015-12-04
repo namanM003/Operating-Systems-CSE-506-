@@ -1212,8 +1212,9 @@ static int xchecksum(struct job_metadata data) {
 	char *buf = NULL;
 	struct scatterlist sg;
 	struct hash_desc desc;
-	char *md5_hash_text = kzalloc(16, __GFP_WAIT);
+	char *hash_text;
 	int i;
+	int hash_length;
 	/*********************NETLINK PART*************/
 	struct nlmsghdr *nlh;
 	int pid;
@@ -1227,21 +1228,32 @@ static int xchecksum(struct job_metadata data) {
 	printk("Algo: %s\n", data.algorithm);
 	printk("Inp:%s\n", data.input_file);
 
-	memset(md5_hash_text, 0, 16);
 
-	//Initing the crypto alloc hash
-	printk("Initialsing the crypto block\n");
-	desc.tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC); 
-	crypto_hash_init(&desc);
-	printk("Crypto alloc initialisation over\n");
-
+	memset(hash_text, 0, 16);
 	ret = kargs_valid_xchecksum(data);
 	printk("xchecksum:Return value after validation:%d\n", ret);
-
 	if (ret < 0) {
 		printk("xchecksum: invalid arguments\n");
 		goto out; 
 	}
+	
+	//Initing the crypto alloc hash
+	printk("Initialsing the crypto block\n");
+	if (!strcmp("md5", data.algorithm)) {
+		hash_length = 16;
+		hash_text = kzalloc(16, __GFP_WAIT);
+		desc.tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC); 
+	}
+	else if (!strcmp("sha1", data.algorithm)) {
+		hash_length = 20;
+		hash_text = kzalloc(20, __GFP_WAIT);
+		desc.tfm = crypto_alloc_hash("sha1", 0, CRYPTO_ALG_ASYNC); 
+	}
+	crypto_hash_init(&desc);
+
+	printk("Crypto alloc initialisation over\n");
+
+	
 
 	printk("Before malloc buffer\n");
 	buf = kmalloc(count, GFP_KERNEL);
@@ -1274,11 +1286,11 @@ static int xchecksum(struct job_metadata data) {
 		
 	} while (r_bytes == count);
 
-	crypto_hash_final(&desc, md5_hash_text); //Compute the final md5 hash after calculating the hash of all parts. 
-	printk("Succesfully computed the md5 checksum::%s\n", md5_hash_text);
+	crypto_hash_final(&desc, hash_text); //Compute the final md5 hash after calculating the hash of all parts. 
+	printk("Succesfully computed the md5 checksum::%s\n", hash_text);
 	
-	for (i = 0; i < 16; i++) {
-        	printk("%02x:%d\n", (unsigned int)md5_hash_text[i], i);
+	for (i = 0; i < hash_length; i++) {
+        	printk("%02x:%d\n", (unsigned int)hash_text[i], i);
     	}
 
 
@@ -1286,19 +1298,20 @@ static int xchecksum(struct job_metadata data) {
 	out:
 	if (buf)
 		kfree(buf);
+	//have to free the hash tet at the end
 
 	pid = data.pid;
 
 	switch(ret) {
 	case 0:
 		printk("md5 success. entering netlink part\n");
-		msg_size = 16;
-		printk("MD5 Checksum %s\n", md5_hash_text);
+		msg_size = hash_length;
+		printk("MD5 Checksum %s\n", hash_text);
 		printk("after computing md5 msg length\n");
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
 		NETLINK_CB(skb_out).dst_group = 0;
-		strncpy(nlmsg_data(nlh), md5_hash_text, msg_size);
+		strncpy(nlmsg_data(nlh), hash_text, msg_size);
 		res = nlmsg_unicast(nl_sk, skb_out, pid);
 		break;
 	default:
