@@ -281,7 +281,8 @@ int main(int argc,char* argv[])
 				argument.output_file = malloc(strlen(argument.input_file)+1);
 				strcpy(argument.output_file, argument.input_file);
 			}
-
+			printf("Operation not implemented correctly so removed\n");
+			goto out;
 			break;
 		case 3:
 			break;

@@ -299,7 +299,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 	mutex_lock(&lock);
 	job->job_d.jobid = job_id;
 	job_id++;
-	list_add_tail(&job->job_q, &(jobs->job_q));
+	list_add_tail(&job->job_q, &jobs->job_q);
 
 	if (!count) {
 		printk("Checked condition of counter waking consumer q up\n");
