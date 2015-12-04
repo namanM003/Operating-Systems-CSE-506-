@@ -147,7 +147,7 @@ int main(int argc,char* argv[])
 			printf("To find checksum\n");
 			printf("\t./xsubmit -t 3 -a \"algo name\" inputfile\n");
 			printf("\tAlgorithms Supported\n");
-			printf("\t\t 1. md5\n");
+			printf("\t\t 1. md5\n\t\t 3. sha1\n");
 			printf("To list jobs\n");
 			printf("\t./xsubmit -t 4\n");
 			printf("To remove a job\n");
@@ -159,7 +159,8 @@ int main(int argc,char* argv[])
 
 			return 0;
 		case '?':
-			if (optopt == 'p' || optopt == 'a' || optopt == 't' || optopt == 'j' || optopt == 'k') {
+			if (optopt == 'p' || optopt == 'a' || optopt == 't' ||
+					optopt == 'j' || optopt == 'k') {
 				fprintf(stderr,"Option -%c is missing"
 					       " argument.\n",optopt);
 				goto out;
@@ -178,7 +179,8 @@ int main(int argc,char* argv[])
 		if (realpath_f != NULL) {
 			argument.input_file = malloc(strlen(realpath_f)+1);
 			memset(argument.input_file, 0, strlen(realpath_f)+1);
-			memcpy(argument.input_file, realpath_f, strlen(realpath_f));
+			memcpy(argument.input_file, realpath_f,
+					strlen(realpath_f));
 			free(realpath_f);
 			printf("%s\n",argument.input_file);
 		}
@@ -210,7 +212,6 @@ int main(int argc,char* argv[])
 	}
 	switch(type) {
 		case 1:
-			printf("In Option 1\n");
 			/* This is the encrypt decrypt job
 			 * Mandatory Requirements
 			 * -a: Algorithm
@@ -236,8 +237,10 @@ int main(int argc,char* argv[])
 				error = -EINVAL;
 				goto out;
 			}
-			if ( flag_compress || flag_decompress || (flag_encrypt && flag_decrypt) || job_id || ((delete && overwrite) || (delete && rename) ||
-						(overwrite && rename))) {
+			if ( flag_compress || flag_decompress || (flag_encrypt
+				&& flag_decrypt) || job_id || ((delete &&
+				overwrite) || (delete && rename) ||
+					(overwrite && rename))) {
 				printf("One or more wrong/extra argument sent\n");
 				error = -EINVAL;
 				goto out;
@@ -253,21 +256,26 @@ int main(int argc,char* argv[])
 				goto out;
 			}
 			if (!argument.output_file) {
-				argument.output_file = malloc(strlen(argument.input_file)+1);
-				strcpy(argument.output_file, argument.input_file);
+				argument.output_file = malloc
+					(strlen(argument.input_file)+1);
+				strcpy(argument.output_file,
+						argument.input_file);
 			}
 			break;
 		case 2:
-			printf("In option 2\n");
 			/* This is compress decompress job */
 			if (!algorithm || !(flag_compress || flag_decompress)) {
-			       printf("Missing 1 or more mandatory parameter to compress or decompress\n");
+			       printf("Missing 1 or more mandatory parameter"
+					      "  to compress or decompress\n");
 			       error = -EINVAL;
 			       goto out;
 			}
-			if ( job_id || flag_encrypt || flag_decrypt || ((flag_compress && flag_decompress)) || ((delete && overwrite) ||
-					       (delete && rename) || (overwrite && rename))) {
-				printf("One or more wrong/extra arguments passed\n");
+			if ( job_id || flag_encrypt || flag_decrypt ||
+				((flag_compress && flag_decompress)) ||
+				((delete && overwrite) || (delete && rename)
+				|| (overwrite && rename))) {
+				printf("One or more wrong/extra "
+						"arguments passed\n");
 				error = -EINVAL;
 				goto out;
 			}
@@ -276,27 +284,33 @@ int main(int argc,char* argv[])
 				error = -EINVAL;
 				goto out;
 			}
-			if (!argument.output_file && !(rename || overwrite || delete)) {
+			if (!argument.output_file &&
+					!(rename || overwrite || delete)) {
 				printf(" Missing output file name\n");
 				error = -EINVAL;
 				goto out;
 			}
 			if (!argument.output_file) {
-				argument.output_file = malloc(strlen(argument.input_file)+1);
-				strcpy(argument.output_file, argument.input_file);
+				argument.output_file = malloc
+					(strlen(argument.input_file)+1);
+				strcpy(argument.output_file,
+						argument.input_file);
 			}
-			printf("Operation not implemented correctly so removed\n");
+			printf("Operation not implemented correctly,"
+				       " hence removed\n");
 			goto out;
 			break;
 		case 3:
-			printf("In option 3 hashing\n");
 			if (!algorithm) {
 				printf("Algorithm name missing\n");
 				error = -EINVAL;
 				goto out;
 			}
-			if ( flag_compress || flag_decompress || flag_encrypt || flag_decrypt || job_id || delete || overwrite || rename) {
-				printf("One or more unwanted arguments passed\n");
+			if ( flag_compress || flag_decompress || flag_encrypt
+				|| flag_decrypt || job_id || delete
+				|| overwrite || rename) {
+				printf("One or more unwanted arguments"
+					       " passed\n");
 				error = -EINVAL;
 				goto out;
 			}
@@ -305,16 +319,18 @@ int main(int argc,char* argv[])
 				error = -EINVAL;
 				goto out;
 			}
-			if (strcmp("md5", argument.algorithm)) {
-				printf("Unsupported Algorithm passed. Currently we support only md5\n");
+			if (strcmp("md5", argument.algorithm) && strcmp("sha1"
+						, argument.algorithm)) {
+				printf("Unsupported Algorithm passed. "
+					"Currently we support sha1 and md5\n");
 				error = -EINVAL;
 				goto out;
 			}	
 			break;
 		case 4:
-			if (algorithm || flag_encrypt || flag_decrypt || flag_compress || rename || overwrite
-				|| delete || key || job_priority || job_id )
-		       	{
+			if (algorithm || flag_encrypt || flag_decrypt ||
+				flag_compress || rename || overwrite || delete
+			       || key || job_priority || job_id ) {
 				printf("Extra invalid arguments passed\n");
 				error = -EINVAL;
 				goto out;
@@ -324,11 +340,14 @@ int main(int argc,char* argv[])
 			break;
 		case 5:
 			if (!job_id || job_id <= 0) {
-				printf("Missing Job ID or incorrect job id (Should be greater than 0)\n");
+				printf("Missing Job ID or incorrect job id "
+					       "(Should be greater than 0)\n");
 				error = -EINVAL;
 				goto out;
 			}
-			if (algorithm || flag_encrypt || flag_decrypt || flag_compress || rename || overwrite || delete || key || job_priority) {
+			if (algorithm || flag_encrypt || flag_decrypt ||
+				flag_compress || rename || overwrite ||
+			       	delete || key || job_priority) {
 				printf("Invalid flag passed\n");
 				error = -EINVAL;
 				goto out;
@@ -337,12 +356,15 @@ int main(int argc,char* argv[])
 			memset(argument.algorithm, 0, 4096);
 			break;
 		case 6:
-			if (!job_id || !job_priority || job_priority < 1 || job_priority > 10) {
-				printf("Missing/Invalid job id or job priority\n");
+			if (!job_id || !job_priority || job_priority < 1
+					|| job_priority > 10) {
+				printf("Missing/Invalid job id or job "
+					       "priority\n");
 				error = -EINVAL;
 				goto out;
 			}
-			if (algorithm || flag_encrypt || flag_decrypt || flag_compress || rename || overwrite || delete
+			if (algorithm || flag_encrypt || flag_decrypt ||
+				flag_compress || rename || overwrite || delete
 					|| key) {
 				printf("Invalid parameters passed.\n");
 				error = -EINVAL;
@@ -352,7 +374,9 @@ int main(int argc,char* argv[])
 			memset(argument.algorithm, 0, 4096);
 			break;
 		case 7:
-			break;
+			printf("Sorry this functionality is not yet "
+					"implemented\n");
+			goto out;
 		default:
 			printf("Invalid Option \n");
 			error = -EINVAL;
@@ -365,7 +389,8 @@ int main(int argc,char* argv[])
 	 */
 	if (type == 1 || type ==2 || type == 3) {
 		createSocket(pid);
-		pthread_create(&thread, NULL, (void *) &listen_to_kernel, (void*)pid);
+		pthread_create(&thread, NULL, (void *) &listen_to_kernel,
+				(void*)pid);
 	}
 	rc = syscall(__NR_submitjob, dummy, 3);
 	if (rc == 0) {

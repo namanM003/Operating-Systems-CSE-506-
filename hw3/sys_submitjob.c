@@ -24,9 +24,6 @@
 #define NETLINK_USER 31
 
 asmlinkage extern long (*sysptr)(void *arg, int argslen);
-/*
- * struct workqueue_struct *hw3_assigment = NULL;
- */
 
 /* 
  *
@@ -629,8 +626,8 @@ xcrypt_write_file(const char *filename, void *buf,
 	mm_segment_t oldfs;
 	loff_t pos = offset;
 	int bytes;
-
-	filp = filp_open(filename, O_CREAT | O_RDWR, 0644);
+	printk("%s file name", filename);
+	filp = filp_open(filename, O_CREAT | O_WRONLY, 0644);
 
 	if (!filp || IS_ERR(filp)) {
 		printk("sys_xcrypt: xcrypt_write_file err %d\n",
@@ -685,7 +682,7 @@ static int xcrypt(struct job_metadata data)
 	struct sk_buff *skb_out;
 	int msg_size;
 	char *msg = "Success";
-	char *unsuc = "Unsuccessfull";
+	char *unsuc = "Unsuccessful";
 	int res;
 	/****Netlink variables end***/
 	ret = kargs_valid(data);
@@ -1176,7 +1173,7 @@ out:
 	pid = data.pid;
 	switch(ret) {
 	case 0:
-		printk("Successfull\n");
+		printk("Successful\n");
 		msg_size = strlen(msg);
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
@@ -1432,7 +1429,7 @@ static void  __exit exit_sys_submitjob(void)
 		sysptr = NULL;
 	if (consumer) {
 		kthread_stop(consumer);
-		printk("Consumer thread stopped succesfully\n");
+		printk("Consumer thread stopped successfully\n");
 	}
 	if (nl_sk)
 		netlink_kernel_release(nl_sk);
