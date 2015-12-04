@@ -1279,6 +1279,7 @@ static int xchecksum(struct job_metadata data) {
 			strncat(buffer, nextchar, strlen(nextchar));
 		}
 	}
+
 out:
 	pid = data.pid;
 
