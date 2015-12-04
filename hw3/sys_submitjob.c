@@ -251,7 +251,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 			goto out_free;
 		}
 
-		job->job_d.type = 3;
+		//job->job_d.type = 3;
 		break;
 	case 4:
 		/* Assuming user is sending a buffer equivalent to
@@ -1210,10 +1210,11 @@ static int xchecksum(struct job_metadata data) {
 	int r_bytes = 0;
 	loff_t r_offset = 0;
 	char *buf = NULL;
+	char *buffer = NULL;
+	char *nextchar = NULL;
 	struct scatterlist sg;
 	struct hash_desc desc;
 	char *md5_hash_text = kzalloc(16, __GFP_WAIT);
-	int i;
 	/*********************NETLINK PART*************/
 	struct nlmsghdr *nlh;
 	int pid;
@@ -1221,31 +1222,24 @@ static int xchecksum(struct job_metadata data) {
 	int msg_size;
 	char *msg = "Unsuccessful";
 	int res;
+	int i = 0; /* Counter to run for loop */
 
 	
-	printk("In xchecksum function");
-	printk("Algo: %s\n", data.algorithm);
-	printk("Inp:%s\n", data.input_file);
 
 	memset(md5_hash_text, 0, 16);
 
 	//Initing the crypto alloc hash
-	printk("Initialsing the crypto block\n");
 	desc.tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC); 
 	crypto_hash_init(&desc);
-	printk("Crypto alloc initialisation over\n");
 
 	ret = kargs_valid_xchecksum(data);
-	printk("xchecksum:Return value after validation:%d\n", ret);
 
 	if (ret < 0) {
 		printk("xchecksum: invalid arguments\n");
 		goto out; 
 	}
 
-	printk("Before malloc buffer\n");
 	buf = kmalloc(count, GFP_KERNEL);
-	printk("malloc buffer successful\n");
 
 	if (!buf) {
 		printk("xchecksum: kmalloc couldn't allocate memory\n");
@@ -1254,9 +1248,7 @@ static int xchecksum(struct job_metadata data) {
 	}
 	do {
 		memset(buf, 0, count);
-		printk("calling xcrypt_read:\n");
 		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
-		printk("successful read:\n");
 
 		
 		if (r_bytes < 0) {
@@ -1265,7 +1257,6 @@ static int xchecksum(struct job_metadata data) {
 			goto out;
 		}
 		///////////////////// My PRINT /////////////
-		printk("Data Read: |%s|\n", buf);
 
 		sg_init_one(&sg, buf, r_bytes);
 		crypto_hash_update(&desc, &sg, r_bytes);
@@ -1274,16 +1265,22 @@ static int xchecksum(struct job_metadata data) {
 		
 	} while (r_bytes == count);
 
-	crypto_hash_final(&desc, md5_hash_text); //Compute the final md5 hash after calculating the hash of all parts. 
-	printk("Succesfully computed the md5 checksum::%s\n", md5_hash_text);
-	
-	for (i = 0; i < 16; i++) {
-        	printk("%02x:%d\n", (unsigned int)md5_hash_text[i], i);
-    	}
+	crypto_hash_final(&desc, md5_hash_text); //Compute the final md5 hash after calculating the hash of all parts.
+	nextchar = kzalloc(9, __GFP_WAIT);
+	buffer = kzalloc(33, __GFP_WAIT);
+	for (i=0; i < 16; i++) {
+		memset(nextchar, 0, 9);
+		snprintf(nextchar, 9, "%02x", md5_hash_text[i]);
+		if (strlen(nextchar) > 6) {
+			strncat(buffer, &nextchar[6], 2);
+			
+		} else {
+			strncat(buffer, nextchar, strlen(nextchar));
+		}
+	}
 
 
- 
-	out:
+out:
 	if (buf)
 		kfree(buf);
 
@@ -1291,20 +1288,17 @@ static int xchecksum(struct job_metadata data) {
 
 	switch(ret) {
 	case 0:
-		printk("md5 success. entering netlink part\n");
-		msg_size = 16;
-		printk("MD5 Checksum %s\n", md5_hash_text);
-		printk("after computing md5 msg length\n");
+		msg_size = 32;
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
 		NETLINK_CB(skb_out).dst_group = 0;
-		strncpy(nlmsg_data(nlh), md5_hash_text, msg_size);
+		strncpy(nlmsg_data(nlh), buffer, msg_size);
 		res = nlmsg_unicast(nl_sk, skb_out, pid);
+		kfree(buffer);
+		kfree(nextchar);
 		break;
 	default:
-		printk("md5 failed. entering netlink part\n");
 		msg_size = strlen(msg);
-		printk("after computing md5 msg length:fail part\n");
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
 		NETLINK_CB(skb_out).dst_group = 0; /* not in mcast group */
