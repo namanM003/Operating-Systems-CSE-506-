@@ -1247,7 +1247,6 @@ static int xchecksum(struct job_metadata data) {
 		memset(buf, 0, count);
 		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
 
-		
 		if (r_bytes < 0) {
 			ret  = -EIO;
 			printk("xcrypt: error in reading file.\n");
@@ -1275,7 +1274,6 @@ static int xchecksum(struct job_metadata data) {
 			strncat(buffer, nextchar, strlen(nextchar));
 		}
 	}
-
 
 out:
 	if (buf)
