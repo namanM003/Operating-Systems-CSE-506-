@@ -225,7 +225,33 @@ asmlinkage long submitjob(void *arg, int argslen)
 		}
 		break;
 	case 3:
-		job->job_d.type = 3;
+		job->job_d.input_file = kzalloc(strlen_user((
+					(struct job_metadata *)arg)->
+					input_file)+1, __GFP_WAIT);
+		if (job->job_d.input_file == NULL) {
+			error = -ENOMEM;
+			goto out_free;
+		}
+		if (copy_from_user(job->job_d.input_file,
+			((struct job_metadata *)arg)->input_file,
+			strlen_user(((struct job_metadata *)
+					arg)->input_file))) {
+			error = -EINVAL;
+			kfree(job->job_d.input_file);
+			goto out_free;
+		}
+		job->job_d.algorithm = kzalloc(
+			strlen_user(((struct job_metadata *)arg)->algorithm)+1,
+			__GFP_WAIT);
+		if (copy_from_user(job->job_d.algorithm,
+			((struct job_metadata *)arg)->algorithm,
+			strlen_user(((struct job_metadata *)arg)->algorithm))) {
+			error = -EINVAL;
+			//DO REST OF FREEING
+			goto out_free;
+		}
+
+		//job->job_d.type = 3;
 		break;
 	case 4:
 		/* Assuming user is sending a buffer equivalent to
@@ -273,7 +299,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 	mutex_lock(&lock);
 	job->job_d.jobid = job_id;
 	job_id++;
-	list_add_tail(&job->job_q, &(jobs->job_q));
+	list_add_tail(&job->job_q, &jobs->job_q);
 
 	if (!count) {
 		printk("Checked condition of counter waking consumer q up\n");
@@ -392,6 +418,63 @@ out_valid:
 
 	return ret;
 }
+static int kargs_valid_xchecksum(const struct job_metadata data)
+{
+	int ret = 0;
+	int i = 0;
+	char *hash_alg_supported[] = {"md5", "sha1"};
+	int valid_hash_alg = 0;
+	int no_supported_hash_alg = sizeof(hash_alg_supported) / sizeof(hash_alg_supported[0]);
+	
+
+	struct file *ifilp = NULL;
+
+	
+
+	//if (!data.input_file || !*data.input_file) { 
+	if (!data.input_file) {
+		printk("xchecksum: invalid input file path\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
+	printk("**1***\n");
+
+	ifilp = filp_open(data.input_file, O_RDONLY, 0);
+	if (!ifilp || IS_ERR(ifilp)) {
+		printk("xchecksum: cannot open input file %d\n",
+		       (int)PTR_ERR(ifilp));
+		ret = -ENOENT;
+		goto out_valid;
+	}
+	if (!ifilp->f_op->read) {
+		printk("xchecksum: cannot read input file %d\n",
+		       (int)PTR_ERR(ifilp));
+		ret = -EIO;
+		goto out_valid;
+	}
+
+	for (i = 0; i < no_supported_hash_alg; ++i) {
+                printk("Hash algorithm supported: %s\n", hash_alg_supported[i]);
+                if (strcmp(hash_alg_supported[i], data.algorithm) == 0) {
+                        valid_hash_alg = 1;
+                }
+        }
+	
+		/*if (strcmp("md5", data.algorithm) == 0) {
+			valid_hash_alg = 1;
+		}*/
+
+	if (valid_hash_alg != 1) {
+		printk("xchecksum: Hash algorithm invalid or not supported.\n");
+		ret = -EINVAL;
+		goto out_valid;
+	}
+out_valid:
+	if (ifilp && !IS_ERR(ifilp))
+		filp_close(ifilp, NULL);
+	return ret;
+}
+
 
 static inline
 unsigned int ll_crypto_tfm_alg_min_keysize(struct crypto_blkcipher *tfm)
@@ -1120,135 +1203,110 @@ out:
 	return 0;
 }
 
-static int xompress_compress(char *src, char *dst, unsigned int buflen,
-			     const char *algo)
-{
-	printk("In compressions");
-	int rc = 0;
-	struct crypto_comp *tfm = crypto_alloc_comp("lzo", 0, CRYPTO_ALG_ASYNC);
-	unsigned int finalLength = 0;
-	rc = crypto_comp_compress(tfm, src, strlen(src), dst, &finalLength);
-	printk(" return code from compression:%d, final length :%d", rc, finalLength);
-	/*
-	*/
-	return rc;
-}
+static int xchecksum(struct job_metadata data) {
 
-static int xompress(struct job_metadata data)
-{
 	int ret = 0;
-	unsigned long count = PAGE_SIZE;
+	unsigned long count = PAGE_SIZE;//page size
 	int r_bytes = 0;
-	int w_bytes = 0;
-	char *buf = NULL;
-	char *algorithm = NULL;
 	loff_t r_offset = 0;
-	loff_t w_offset = 0;
+	char *buf = NULL;
+	char *buffer = NULL;
+	char *nextchar = NULL;
+	struct scatterlist sg;
+	struct hash_desc desc;
+	char *md5_hash_text = kzalloc(16, __GFP_WAIT);
+	/*********************NETLINK PART*************/
+	struct nlmsghdr *nlh;
+	int pid;
+	struct sk_buff *skb_out;
+	int msg_size;
+	char *msg = "Unsuccessful";
+	int res;
+	int i = 0; /* Counter to run for loop */
 
-	/*
-	ret = kargs_valid(data);
+	
+
+	memset(md5_hash_text, 0, 16);
+
+	//Initing the crypto alloc hash
+	desc.tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC); 
+	crypto_hash_init(&desc);
+
+	ret = kargs_valid_xchecksum(data);
+
 	if (ret < 0) {
-		printk("xcrypt: invalid arguments\n");
-		goto out;
+		printk("xchecksum: invalid arguments\n");
+		goto out; 
 	}
-	*/
-
-	algorithm = kmalloc(sizeof(char) * 16, GFP_KERNEL);
-	if (!algorithm) {
-		printk("xcrypt: kmalloc couldn't allocate memory\n");
-		ret =  -ENOMEM;
-		goto out;
-	}
-
-	strcpy(algorithm, "lzo");
 
 	buf = kmalloc(count, GFP_KERNEL);
+
 	if (!buf) {
-		printk("xcrypt: kmalloc couldn't allocate memory\n");
+		printk("xchecksum: kmalloc couldn't allocate memory\n");
 		ret  = -ENOMEM;
 		goto out;
 	}
-
 	do {
 		memset(buf, 0, count);
 		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
 
-		///////////////////// My PRINT /////////////
-		printk("Data Read: |%s|\n", buf);
 		if (r_bytes < 0) {
 			ret  = -EIO;
 			printk("xcrypt: error in reading file.\n");
 			goto out;
 		}
+		///////////////////// My PRINT /////////////
 
-		if (r_bytes == count) {
-			printk("CHECK THIS LATER!!!!!!\n");
-			/*
-			if (data.operation == 1) {
-				ret = xcrypt_encrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				ret = xcrypt_decrypt(buf, buf, key,
-						     count, keylen,
-						     cipher);
-				if (ret < 0)
-					goto out;
-			}
-
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-
-			w_bytes = xcrypt_write_file(data.output_file, buf, count,
-						    w_offset);
-			if (w_bytes < 0) {
-				ret  = -EIO;
-				printk("xcrypt: error in writing file.\n");
-				goto out;
-			}
-			*/
-		}
-
-		if (r_bytes < count) {
-			if (data.operation == 1) {
-				ret = xompress_compress(buf, buf, r_bytes,
-							algorithm);
-				if (ret < 0)
-					goto out;
-			} else if (data.operation == 2) {
-				/*
-				ret = xompress_decompress(buf, buf, r_bytes,
-							  algorithm);
-				if (ret < 0)
-					goto out;
-				*/
-			}
-
-			///////////////////// My PRINT /////////////
-			printk("Data Enc: |%s|\n", buf);
-			w_bytes = xcrypt_write_file(data.output_file, buf,
-						    r_bytes, w_offset);
-			if (w_bytes < 0) {
-				ret  = -EIO;
-				printk("xcrypt: error in writing file.\n");
-				goto out;
-			}
-		}
+		sg_init_one(&sg, buf, r_bytes);
+		crypto_hash_update(&desc, &sg, r_bytes);
 
 		r_offset = r_offset + r_bytes;
-		w_offset = w_offset + w_bytes;
+		
 	} while (r_bytes == count);
-	printk("Done\n");
+
+	crypto_hash_final(&desc, md5_hash_text); //Compute the final md5 hash after calculating the hash of all parts.
+	nextchar = kzalloc(9, __GFP_WAIT);
+	buffer = kzalloc(33, __GFP_WAIT);
+	for (i=0; i < 16; i++) {
+		memset(nextchar, 0, 9);
+		snprintf(nextchar, 9, "%02x", md5_hash_text[i]);
+		if (strlen(nextchar) > 6) {
+			strncat(buffer, &nextchar[6], 2);
+			
+		} else {
+			strncat(buffer, nextchar, strlen(nextchar));
+		}
+	}
 
 out:
 	if (buf)
 		kfree(buf);
 
-	printk("In Xompress\n");
-	return 1;
+	pid = data.pid;
+
+	switch(ret) {
+	case 0:
+		msg_size = 32;
+		skb_out = nlmsg_new(msg_size, 0);
+		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
+		NETLINK_CB(skb_out).dst_group = 0;
+		strncpy(nlmsg_data(nlh), buffer, msg_size);
+		res = nlmsg_unicast(nl_sk, skb_out, pid);
+		kfree(buffer);
+		kfree(nextchar);
+		break;
+	default:
+		msg_size = strlen(msg);
+		skb_out = nlmsg_new(msg_size, 0);
+		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
+		NETLINK_CB(skb_out).dst_group = 0; /* not in mcast group */
+		strncpy(nlmsg_data(nlh), msg, msg_size);
+		res = nlmsg_unicast(nl_sk, skb_out, pid);
+		break;
+	}
+	crypto_free_hash(desc.tfm);
+	return 0;
+
 }
 
 static int consume(void *data)
@@ -1263,6 +1321,7 @@ static int consume(void *data)
 			 *  Should we add condition to
 			 * continue till all jobs are over of not?
 			 */
+		highest_priority = -1;
 		mutex_lock(&lock);
 		head = jobs;
 		/*
@@ -1298,6 +1357,7 @@ static int consume(void *data)
 				break;
 			case 3:
 				printk("In job type 3\n");
+				xchecksum(get_job->job_d);
 				break;
 			case 4:
 				printk("In Job type 4\n");
