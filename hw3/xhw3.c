@@ -180,9 +180,9 @@ int main(int argc,char* argv[])
 			memset(argument.input_file, 0, strlen(realpath_f)+1);
 			memcpy(argument.input_file, realpath_f, strlen(realpath_f));
 			free(realpath_f);
+			printf("%s\n",argument.input_file);
 		}
 		realpath_f = NULL;
-		printf("%s\n",argument.input_file);
 	}
 	
 	if (optind < argc) {

@@ -251,7 +251,7 @@ asmlinkage long submitjob(void *arg, int argslen)
 			goto out_free;
 		}
 
-		job->job_d.type = 3;
+		//job->job_d.type = 3;
 		break;
 	case 4:
 		/* Assuming user is sending a buffer equivalent to
@@ -425,11 +425,7 @@ static int kargs_valid_xchecksum(const struct job_metadata data)
 	char *hash_alg_supported[] = {"md5", "sha1"};
 	int valid_hash_alg = 0;
 	int no_supported_hash_alg = sizeof(hash_alg_supported) / sizeof(hash_alg_supported[0]);
-	
-
 	struct file *ifilp = NULL;
-
-	
 
 	//if (!data.input_file || !*data.input_file) { 
 	if (!data.input_file) {
@@ -437,8 +433,6 @@ static int kargs_valid_xchecksum(const struct job_metadata data)
 		ret = -EINVAL;
 		goto out_valid;
 	}
-	printk("**1***\n");
-
 	ifilp = filp_open(data.input_file, O_RDONLY, 0);
 	if (!ifilp || IS_ERR(ifilp)) {
 		printk("xchecksum: cannot open input file %d\n",
@@ -452,18 +446,11 @@ static int kargs_valid_xchecksum(const struct job_metadata data)
 		ret = -EIO;
 		goto out_valid;
 	}
-
 	for (i = 0; i < no_supported_hash_alg; ++i) {
-                printk("Hash algorithm supported: %s\n", hash_alg_supported[i]);
-                if (strcmp(hash_alg_supported[i], data.algorithm) == 0) {
-                        valid_hash_alg = 1;
-                }
-        }
-	
-		/*if (strcmp("md5", data.algorithm) == 0) {
+		if (strcmp(hash_alg_supported[i], data.algorithm) == 0) {
 			valid_hash_alg = 1;
-		}*/
-
+		}
+	}
 	if (valid_hash_alg != 1) {
 		printk("xchecksum: Hash algorithm invalid or not supported.\n");
 		ret = -EINVAL;
@@ -1210,114 +1197,101 @@ static int xchecksum(struct job_metadata data) {
 	int r_bytes = 0;
 	loff_t r_offset = 0;
 	char *buf = NULL;
+	char *buffer = NULL;
+	char *nextchar = NULL;
 	struct scatterlist sg;
 	struct hash_desc desc;
-	char *hash_text;
-	int i;
-	int hash_length;
+	char *hash_text = NULL;
+	int hash_length = 0;
 	/*********************NETLINK PART*************/
 	struct nlmsghdr *nlh;
 	int pid;
 	struct sk_buff *skb_out;
-	int msg_size;
+	int msg_size = 0;
 	char *msg = "Unsuccessful";
 	int res;
+	int i = 0; /* Counter to run for loop */
 
 	
-	printk("In xchecksum function");
-	printk("Algo: %s\n", data.algorithm);
-	printk("Inp:%s\n", data.input_file);
-
-
-	memset(hash_text, 0, 16);
-	ret = kargs_valid_xchecksum(data);
-	printk("xchecksum:Return value after validation:%d\n", ret);
+	ret = kargs_valid_xchecksum(data);   //Checking if the arguments are correct
+	
 	if (ret < 0) {
 		printk("xchecksum: invalid arguments\n");
 		goto out; 
 	}
-	
-	//Initing the crypto alloc hash
-	printk("Initialsing the crypto block\n");
-	if (!strcmp("md5", data.algorithm)) {
-		hash_length = 16;
-		hash_text = kzalloc(16, __GFP_WAIT);
-		desc.tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC); 
-	}
-	else if (!strcmp("sha1", data.algorithm)) {
-		hash_length = 20;
-		hash_text = kzalloc(20, __GFP_WAIT);
-		desc.tfm = crypto_alloc_hash("sha1", 0, CRYPTO_ALG_ASYNC); 
-	}
-	crypto_hash_init(&desc);
 
-	printk("Crypto alloc initialisation over\n");
-
-	
-
-	printk("Before malloc buffer\n");
 	buf = kmalloc(count, GFP_KERNEL);
-	printk("malloc buffer successful\n");
 
 	if (!buf) {
 		printk("xchecksum: kmalloc couldn't allocate memory\n");
 		ret  = -ENOMEM;
 		goto out;
 	}
+	
+	//Initing the crypto alloc hash
+	printk("Initialsing the crypto block\n");
+	if (!strcmp("md5", data.algorithm)) {      //Algorithm is either one of these two, checked already. 
+		hash_length = 16;
+		msg_size = 32;
+		desc.tfm = crypto_alloc_hash("md5", 0, CRYPTO_ALG_ASYNC); 
+	}
+	else if (!strcmp("sha1", data.algorithm)) {
+		hash_length = 20;
+		msg_size = 40;
+		desc.tfm = crypto_alloc_hash("sha1", 0, CRYPTO_ALG_ASYNC); 
+	}
+
+	hash_text = kzalloc(hash_length, __GFP_WAIT);
+	buffer = kzalloc(msg_size+1, __GFP_WAIT);
+	nextchar = kzalloc(9, __GFP_WAIT); 
+		
+	if (!hash_text || !buffer || !nextchar) {
+		printk("xchecksum: kmalloc couldn't allocate memory\n");
+		ret  = -ENOMEM;
+		goto out;
+	}
+	crypto_hash_init(&desc);
+	printk("Crypto block initialised\n");
 	do {
 		memset(buf, 0, count);
-		printk("calling xcrypt_read:\n");
 		r_bytes = xcrypt_read_file(data.input_file, buf, count, r_offset);
-		printk("successful read:\n");
-
-		
 		if (r_bytes < 0) {
 			ret  = -EIO;
 			printk("xcrypt: error in reading file.\n");
 			goto out;
 		}
-		///////////////////// My PRINT /////////////
-		printk("Data Read: |%s|\n", buf);
-
 		sg_init_one(&sg, buf, r_bytes);
 		crypto_hash_update(&desc, &sg, r_bytes);
-
 		r_offset = r_offset + r_bytes;
-		
 	} while (r_bytes == count);
 
-	crypto_hash_final(&desc, hash_text); //Compute the final md5 hash after calculating the hash of all parts. 
-	printk("Succesfully computed the md5 checksum::%s\n", hash_text);
+	crypto_hash_final(&desc, hash_text); //Compute the final hash after calculating the hash of all parts. 
+	printk("Succesfully computed the checksum::%s\n", hash_text);
 	
-	for (i = 0; i < hash_length; i++) {
-        	printk("%02x:%d\n", (unsigned int)hash_text[i], i);
-    	}
-
-
- 
-	out:
-	if (buf)
-		kfree(buf);
-	//have to free the hash tet at the end
-
+		
+	for (i=0; i < hash_length; i++) {   //Converting checksum to readable format
+		memset(nextchar, 0, 9);
+		snprintf(nextchar, 9, "%02x", hash_text[i]);
+		if (strlen(nextchar) > 6) {
+			strncat(buffer, &nextchar[6], 2);
+			
+		} else {
+			strncat(buffer, nextchar, strlen(nextchar));
+		}
+	}
+out:
 	pid = data.pid;
 
 	switch(ret) {
-	case 0:
-		printk("md5 success. entering netlink part\n");
-		msg_size = hash_length;
-		printk("MD5 Checksum %s\n", hash_text);
-		printk("after computing md5 msg length\n");
+	case 0:		
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
 		NETLINK_CB(skb_out).dst_group = 0;
-		strncpy(nlmsg_data(nlh), hash_text, msg_size);
+		strncpy(nlmsg_data(nlh), buffer, msg_size);
 		res = nlmsg_unicast(nl_sk, skb_out, pid);
 		break;
 	default:
-		printk("md5 failed. entering netlink part\n");
 		msg_size = strlen(msg);
-		printk("after computing md5 msg length:fail part\n");
 		skb_out = nlmsg_new(msg_size, 0);
 		nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
 		NETLINK_CB(skb_out).dst_group = 0; /* not in mcast group */
@@ -1325,9 +1299,18 @@ static int xchecksum(struct job_metadata data) {
 		res = nlmsg_unicast(nl_sk, skb_out, pid);
 		break;
 	}
+
+	
+	if (buf)
+		kfree(buf);
+	if (hash_text)
+		kfree(hash_text);
+	if (buffer)
+		kfree(buffer);
+	if (nextchar)
+		kfree(nextchar);
 	crypto_free_hash(desc.tfm);
 	return 0;
-
 }
 
 static int consume(void *data)
