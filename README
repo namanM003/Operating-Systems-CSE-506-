@@ -1,4 +1,4 @@
-This is CSE-506 Operating Systems coursework project. In this Course I developed 2 features
+This is CSE-506 Operating Systems coursework project. In this Course I developed 2 Kernel Modules individually and 1 in a team.
 
 1. System Call to Encrypt/Decrypt
         
@@ -6,7 +6,11 @@ This is CSE-506 Operating Systems coursework project. In this Course I developed
         
 2. AMFS: Anti Malware File System
         
-        -You can find source code and description of problem in fs/amfs folder.
+        - You can find source code and description of problem in fs/amfs folder.
+
+3. Asynchronous and Concurrent Processing, Kernel Locking and callbacks.
+
+        - You can find source code and description of problem in hw3 folder
 
 
 
